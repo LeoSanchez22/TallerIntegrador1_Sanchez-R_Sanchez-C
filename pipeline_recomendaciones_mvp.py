@@ -29,25 +29,59 @@ for name, path in PATHS.items():
 OUTPUT_PARQUET = PATHS['production'] / 'recomendaciones_sprint1.parquet'
 
 # =====================================================================
-# 1. CARGA DE DATOS E HISTÓRICOS Y SELECCIÓN MANUAL
+# 1. CARGA DE DATOS, FILTRO MULTI-ZONA Y DIRECTORIO DE CLIENTES
 # =====================================================================
 print("1. Cargando bases de datos de Laboratorios Sophia...")
 compras_ctx = pd.read_csv(PATHS['intermediate'] / 'compras_ctx.csv')
 seq_por_cliente = pd.read_csv(PATHS['intermediate'] / 'secuencias_por_cliente.csv')
 
+# Detección dinámica de columnas
+col_zona = 'vendedor' if 'vendedor' in compras_ctx.columns else 'zona' if 'zona' in compras_ctx.columns else None
+col_cliente = 'cliente' if 'cliente' in compras_ctx.columns else 'nombre_cliente' if 'nombre_cliente' in compras_ctx.columns else 'Cliente' if 'Cliente' in compras_ctx.columns else None
+
+print("\n" + "="*50)
+print("🌍 MODO MULTI-ZONA (ESCALABILIDAD TALLER INTEGRADOR)")
+print("="*50)
+
+if col_zona:
+    zonas_disponibles = compras_ctx[col_zona].dropna().unique().tolist()
+    print(f"Zonas detectadas en BD: {zonas_disponibles}")
+    zona_input = input("Ingrese la zona a evaluar (Ej. PHARMA - N2) o presione Enter para procesar TODAS: ").strip()
+    
+    if zona_input:
+        compras_ctx = compras_ctx[compras_ctx[col_zona] == zona_input]
+        zona_activa = zona_input
+        print(f"✅ Filtrado aplicado: Evaluando únicamente clientes de {zona_activa}")
+    else:
+        zona_activa = "MULTI-ZONA"
+        print("✅ Procesando clientes a nivel nacional (Todas las zonas).")
+else:
+    zona_activa = "PHARMA - N2"
+    print("⚠️ No se detectó columna de zona. Asumiendo PHARMA - N2 por defecto.")
+
 num_items = compras_ctx['producto_id'].max() + 2
 mapa_productos = compras_ctx.drop_duplicates('producto_id').set_index('producto_id')['producto'].to_dict()
 
-# Mapear los IDs de clientes a sus nombres reales
-if 'cliente' in compras_ctx.columns:
-    mapa_clientes = compras_ctx.drop_duplicates('cliente_id').set_index('cliente_id')['cliente'].to_dict()
+# Crear mapa de clientes
+if col_cliente:
+    mapa_clientes = compras_ctx.drop_duplicates('cliente_id').set_index('cliente_id')[col_cliente].to_dict()
 else:
     mapa_clientes = {cid: f"Cliente ID {cid}" for cid in compras_ctx['cliente_id'].unique()}
 
-print("\n" + "="*50)
-print("🎯 MODO DE INFERENCIA BAJO DEMANDA")
-print("="*50)
-cliente_input = input("Ingrese el ID del cliente a evaluar (Ej. 15) o presione Enter para procesar todos: ")
+# [NUEVO] Imprimir el directorio de clientes disponibles en la zona
+print("\n" + "="*70)
+print(f"📋 DIRECTORIO DE CLIENTES EN: {zona_activa}")
+print("="*70)
+df_clientes_unicos = compras_ctx.drop_duplicates('cliente_id').sort_values('cliente_id')
+for _, row in df_clientes_unicos.iterrows():
+    c_id = row['cliente_id']
+    c_nombre = row[col_cliente] if col_cliente else f"Cliente {c_id} (Nombre no encontrado en BD)"
+    # Formateamos para que se vea como una tabla limpia
+    print(f" 🔸 ID: {c_id:<4} | {c_nombre}")
+print("="*70)
+
+print("\n🎯 MODO DE INFERENCIA BAJO DEMANDA")
+cliente_input = input(f"Ingrese el ID del cliente a evaluar o presione Enter para procesar toda la zona: ")
 
 if cliente_input.strip():
     clientes_activos = [int(cliente_input.strip())]
@@ -57,13 +91,17 @@ else:
 # =====================================================================
 # [CAPA 3] MOTOR DE RESTRICCIÓN Y CONOCIMIENTO (Reglas de Negocio)
 # =====================================================================
-INVENTARIO_TRUJILLO = {
-    'quiebre_stock': ['ZEBESTEN', 'DUSTALOX'], 
+INVENTARIO_REGIONAL = {
+    'PHARMA - N2': ['ZEBESTEN', 'DUSTALOX'], 
+    'PHARMA - N1': ['LAGRICEL'],             
+    'MULTI-ZONA': []                         
 }
 
-def pasa_filtros_seguridad(producto_sugerido, historial_cliente):
-    if producto_sugerido in INVENTARIO_TRUJILLO['quiebre_stock']:
-        return False, "Bloqueado: Producto sin stock en almacén N2."
+def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual):
+    quiebres_zona = INVENTARIO_REGIONAL.get(zona_actual, [])
+    
+    if producto_sugerido in quiebres_zona:
+        return False, f"Bloqueado: Producto sin stock en almacén {zona_actual}."
     
     if producto_sugerido == 'LAGRICEL PF' and 'LAGRICEL' in historial_cliente:
          return False, "Bloqueado: Riesgo de canibalización con producto similar en catálogo."
@@ -73,7 +111,7 @@ def pasa_filtros_seguridad(producto_sugerido, historial_cliente):
 # =====================================================================
 # [CAPA 2] MOTOR DE EXPLICABILIDAD (XAI - APRIORI)
 # =====================================================================
-print("2. Entrenando Capa XAI: Reglas de Asociación Apriori...")
+print("\n2. Entrenando Capa XAI: Reglas de Asociación Apriori...")
 transacciones = seq_por_cliente['secuencia_productos'].apply(ast.literal_eval).tolist()
 
 te = TransactionEncoder()
@@ -146,7 +184,7 @@ def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
 # =====================================================================
 # [CAPA 1] MÓDULOS PREDICTIVOS (ARQUITECTURA HÍBRIDA)
 # =====================================================================
-print(f"3. Iniciando orquestación de IA para {len(clientes_activos)} clientes (Pharma - N2)...")
+print(f"3. Iniciando orquestación de IA para {len(clientes_activos)} clientes (Zona: {zona_activa})...")
 lista_recomendaciones_finales = []
 todos_los_productos_t = torch.arange(1, num_items)
 
@@ -179,7 +217,7 @@ for cliente_id in clientes_activos:
             nombre_producto = mapa_productos[prod_id]
             score_pct = round(float(score_raw) * 100, 2)
             
-            es_seguro, motivo_rechazo = pasa_filtros_seguridad(nombre_producto, historial_nombres)
+            es_seguro, motivo_rechazo = pasa_filtros_seguridad(nombre_producto, historial_nombres, zona_activa)
             
             if not es_seguro:
                 continue 
@@ -188,7 +226,7 @@ for cliente_id in clientes_activos:
             
             lista_recomendaciones_finales.append({
                 'cliente_id': cliente_id,
-                'zona_comercial': 'PHARMA - N2', 
+                'zona_comercial': zona_activa, 
                 'producto_recomendado': nombre_producto,
                 'ranking': recomendaciones_aprobadas_cliente + 1,
                 'probabilidad_pct': score_pct,
@@ -199,7 +237,7 @@ for cliente_id in clientes_activos:
             recomendaciones_aprobadas_cliente += 1
 
     # =================================================================
-    # LLAMADA AL GENERADOR VISUAL Y REPORTE EN CONSOLA (AHORA EN SU LUGAR CORRECTO)
+    # LLAMADA AL GENERADOR VISUAL Y REPORTE EN CONSOLA
     # =================================================================
     recs_este_cliente = [r for r in lista_recomendaciones_finales if r['cliente_id'] == cliente_id]
     
@@ -211,6 +249,7 @@ for cliente_id in clientes_activos:
         print("\n" + "="*70)
         print(f"📄 REPORTE DE INTELIGENCIA EXPLICABLE (XAI)")
         print(f"🏥 Institución/Cliente: {nombre_cliente} (ID: {cliente_id})")
+        print(f"📍 Zona Comercial: {zona_activa}")
         print("="*70)
         
         for rec in recs_este_cliente:
@@ -224,9 +263,7 @@ for cliente_id in clientes_activos:
         print("   🟢 Nodos Verdes: Su zona de confort (Historial de compras actuales).")
         print("   🔴 Nodos Rojos: Los nuevos colirios que la IA recomienda ofrecer.")
         print("   ➖ Líneas Sólidas: Qué motor de IA hizo la sugerencia.")
-        print("   --- Líneas Punteadas: El Cross-Selling detectado. Indica que la")
-        print("       recomendación roja se hizo porque hace match con un colirio")
-        print("       verde que el cliente ya consume.")
+        print("   --- Líneas Punteadas: El Cross-Selling detectado.")
         print("="*70 + "\n")
 
 # =====================================================================
