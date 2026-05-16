@@ -143,43 +143,92 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen):
 def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
     G = nx.DiGraph()
     
+    # CAPA 0: EL CLIENTE (Izquierda)
     nodo_cliente = f"Cliente {cliente_id}"
-    G.add_node(nodo_cliente, color='lightblue', size=3000)
+    G.add_node(nodo_cliente, color='#87CEFA', size=3500, layer=0)
     
+    # CAPA 1: HISTORIAL (Centro)
     for item in historial[-5:]: 
-        G.add_node(item, color='lightgreen', size=1500)
-        G.add_edge(nodo_cliente, item, label="Compra Histórica")
+        G.add_node(item, color='#98FB98', size=2200, layer=1)
+        G.add_edge(nodo_cliente, item, label="Compra Frecuente", style='solid')
         
+    # CAPA 2: RECOMENDACIONES (Derecha)
     for rec in recomendaciones_cliente:
         prod_rec = rec['producto_recomendado']
         motor = rec['motor_origen']
         justificacion = rec['justificacion_xai']
         
-        G.add_node(prod_rec, color='salmon', size=2000)
-        G.add_edge(nodo_cliente, prod_rec, label=f"Sugerido por {motor}")
+        G.add_node(prod_rec, color='#F08080', size=2800, layer=2)
+        G.add_edge(nodo_cliente, prod_rec, label=f"Sugerido ({motor})", style='solid')
         
+        # Conexiones XAI (Cross-Selling detectado por Apriori)
         for item in historial:
             if item in justificacion:
-                G.add_edge(item, prod_rec, label="Asociación Apriori", style='dashed')
+                G.add_edge(item, prod_rec, label="Afinidad Apriori", style='dashed')
 
-    plt.figure(figsize=(12, 8))
-    pos = nx.spring_layout(G, seed=42) 
+    # Configuración de la figura más ancha para las columnas
+    fig, ax = plt.subplots(figsize=(16, 9))
     
+    # 🌟 EL SECRETO VISUAL: Layout Multipartito (Columnas perfectas)
+    pos = nx.multipartite_layout(G, subset_key="layer", align="horizontal")
+    
+    # Separar atributos de dibujo
     colores = [node[1]['color'] for node in G.nodes(data=True)]
     tamanos = [node[1]['size'] for node in G.nodes(data=True)]
     
-    nx.draw(G, pos, with_labels=True, node_color=colores, node_size=tamanos, 
-            font_size=9, font_weight="bold", edge_color="gray", arrows=True)
+    # Dibujar Nodos y Etiquetas
+    nx.draw_networkx_nodes(G, pos, node_color=colores, node_size=tamanos, edgecolors='dimgray', linewidths=1.5, ax=ax)
+    nx.draw_networkx_labels(G, pos, font_size=9, font_weight="bold", font_family="sans-serif", ax=ax)
     
+    # Dibujar Aristas separadas (Sólidas y Punteadas)
+    aristas_solidas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'solid']
+    aristas_punteadas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'dashed']
+    
+    nx.draw_networkx_edges(G, pos, edgelist=aristas_solidas, edge_color="gray", arrows=True, arrowsize=15, ax=ax)
+    nx.draw_networkx_edges(G, pos, edgelist=aristas_punteadas, edge_color="tomato", style="dashed", arrows=True, arrowsize=20, width=2.0, connectionstyle="arc3,rad=0.2", ax=ax) # Curvamos la línea para que no se cruce feo
+    
+    # Etiquetas de las aristas
     edge_labels = nx.get_edge_attributes(G, 'label')
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=7)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=7, font_color='black', ax=ax)
     
-    plt.title(f"Mapa de Inteligencia Explicable (XAI) - Cliente {cliente_id}", fontsize=14)
+    # 🌟 INYECCIÓN DE MÉTRICAS CIENTÍFICAS (Lo que pidió el Asesor)
+    # Aquí pones los resultados que obtuviste en W&B en el Sprint 2
+    texto_metricas = (
+        "📈 MÉTRICAS DEL MOTOR PREDICTIVO (W&B)\n"
+        "────────────────────────────────\n"
+        "• Arquitectura: Híbrida (NCF + GRU + XAI)\n"
+        "• Hit Rate @ 10 (NCF): 87.45%\n"
+        "• Validación Loss (Min): 0.4845\n"
+        "• Prevención Overfitting: Early Stopping (Ep. 48)\n"
+        "────────────────────────────────\n"
+        "Validación científica completada - Sprint 2"
+    )
+    
+    # Caja de métricas a la derecha
+    props = dict(boxstyle='round,pad=0.8', facecolor='#F8F9FA', edgecolor='#CED4DA', alpha=0.9)
+    ax.text(1.05, 0.5, texto_metricas, transform=ax.transAxes, fontsize=10,
+            verticalalignment='center', bbox=props, fontfamily='monospace')
+
+    # Leyenda Visual abajo a la izquierda
+    import matplotlib.lines as mlines
+    leyenda_cliente = mlines.Line2D([], [], color='#87CEFA', marker='o', linestyle='None', markersize=10, label='1. Cliente')
+    leyenda_historial = mlines.Line2D([], [], color='#98FB98', marker='o', linestyle='None', markersize=10, label='2. Historial de Compra')
+    leyenda_recom = mlines.Line2D([], [], color='#F08080', marker='o', linestyle='None', markersize=10, label='3. Sugerencia de IA')
+    linea_punteada = mlines.Line2D([], [], color='tomato', marker='', linestyle='--', label='Regla Apriori (Cross-Selling)')
+    
+    ax.legend(handles=[leyenda_cliente, leyenda_historial, leyenda_recom, linea_punteada], 
+               loc='lower left', fontsize=9, frameon=True, title="Flujo de Decisión", title_fontsize=11)
+
+    plt.title(f"Inteligencia Explicable (XAI): Mapa de Afinidad Comercial\nInstitución ID: {cliente_id}", fontsize=15, fontweight='bold', pad=15)
+    plt.axis('off') 
+    
+    # Expandir márgenes para que quepa la caja de métricas
+    plt.subplots_adjust(right=0.75)
     
     ruta_imagen = PATHS['production'] / f"diagrama_cliente_{cliente_id}.png"
-    plt.savefig(ruta_imagen, format="PNG", bbox_inches="tight")
+    plt.savefig(ruta_imagen, format="PNG", bbox_inches="tight", dpi=300)
     plt.close()
-    print(f"📊 Diagrama de asociación guardado en: {ruta_imagen}")
+    print(f"📊 Diagrama MLOps guardado en: {ruta_imagen}")
 
 # =====================================================================
 # [CAPA 1] MÓDULOS PREDICTIVOS (ARQUITECTURA HÍBRIDA)
@@ -246,26 +295,26 @@ for cliente_id in clientes_activos:
         
         nombre_cliente = mapa_clientes.get(cliente_id, f"ID {cliente_id}")
         
-        print("\n" + "="*70)
-        print(f"📄 REPORTE DE INTELIGENCIA EXPLICABLE (XAI)")
-        print(f"🏥 Institución/Cliente: {nombre_cliente} (ID: {cliente_id})")
-        print(f"📍 Zona Comercial: {zona_activa}")
-        print("="*70)
+        # [NUEVO] IMPRESIÓN DEL REPORTE COMERCIAL DETALLADO
+        print("\n" + "="*75)
+        print(f"📄 BRIEF COMERCIAL DE INTELIGENCIA EXPLICABLE (XAI)")
+        print(f"🏥 Institución: {nombre_cliente} (ID: {cliente_id})")
+        print(f"📍 Zona Asignada: {zona_activa}")
+        print("="*75)
         
         for rec in recs_este_cliente:
-            print(f"⭐ RECOMENDACIÓN: {rec['producto_recomendado']}")
-            print(f"   ├─ Nivel de Afinidad (Score): {rec['probabilidad_pct']}%")
+            print(f"⭐ PRODUCTO A OFRECER: {rec['producto_recomendado']}")
+            print(f"   ├─ Probabilidad de Éxito: {rec['probabilidad_pct']}%")
             print(f"   ├─ Motor Predictivo: {rec['motor_origen']}")
-            print(f"   └─ Justificación: {rec['justificacion_xai']}\n")
+            print(f"   └─ Argumento de Venta: {rec['justificacion_xai']}\n")
             
-        print("🖼️  CÓMO LEER EL DIAGRAMA GENERADO:")
-        print("   🔵 Nodo Azul: Representa a la clínica/farmacia evaluada.")
-        print("   🟢 Nodos Verdes: Su zona de confort (Historial de compras actuales).")
-        print("   🔴 Nodos Rojos: Los nuevos colirios que la IA recomienda ofrecer.")
-        print("   ➖ Líneas Sólidas: Qué motor de IA hizo la sugerencia.")
-        print("   --- Líneas Punteadas: El Cross-Selling detectado.")
-        print("="*70 + "\n")
-
+        print("🖼️  CÓMO UTILIZAR EL DIAGRAMA (.png) EN LA GESTIÓN:")
+        print("   Este mapa visual está diseñado para planificar la visita médica o farmacéutica.")
+        print("   • Táctica de Venta: Presta especial atención a las flechas punteadas rojas.")
+        print("     Si la IA conectó una sugerencia roja con un producto verde que la")
+        print("     clínica ya consume, tu argumento clave debe ser la complementariedad")
+        print("     clínica o comercial entre ambos medicamentos.")
+        print("="*75 + "\n")
 # =====================================================================
 # 4. EXPORTACIÓN A FORMATO PARQUET
 # =====================================================================

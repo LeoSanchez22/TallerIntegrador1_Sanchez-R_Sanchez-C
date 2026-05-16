@@ -1,0 +1,19 @@
+{"time":"2026-05-15T21:35:50.8829589-05:00","level":"INFO","msg":"wandb-core"}
+{"time":"2026-05-15T21:35:50.8829589-05:00","level":"INFO","msg":"stream: starting","core version":"0.27.0"}
+{"time":"2026-05-15T21:35:51.3796601-05:00","level":"INFO","msg":"stream: created new stream","id":"sifyzvw4"}
+{"time":"2026-05-15T21:35:51.3796601-05:00","level":"INFO","msg":"handler: started"}
+{"time":"2026-05-15T21:35:51.3801626-05:00","level":"INFO","msg":"stream: started"}
+{"time":"2026-05-15T21:35:51.3801626-05:00","level":"INFO","msg":"writer: started","stream_id":"sifyzvw4"}
+{"time":"2026-05-15T21:35:51.3801626-05:00","level":"INFO","msg":"sender: started"}
+{"time":"2026-05-15T21:35:52.5077701-05:00","level":"INFO","msg":"filestream: sending request","total_files":1}
+{"time":"2026-05-15T21:35:53.0996388-05:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-05-15T21:36:07.5097045-05:00","level":"INFO","msg":"filestream: sending request","total_files":3,"history_offset":0,"history_lines":29,"events_offset":0,"events_lines":2,"uploaded_len":2}
+{"time":"2026-05-15T21:36:08.2691937-05:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-05-15T21:36:20.145316-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2026-05-15T21:36:20.1473708-05:00","level":"INFO","msg":"filestream: sending request","total_files":2,"history_offset":29,"history_lines":21,"uploaded_len":2,"complete":true,"exit_code":0}
+{"time":"2026-05-15T21:36:21.3543481-05:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-05-15T21:36:21.3548512-05:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2026-05-15T21:36:21.3597901-05:00","level":"INFO","msg":"stream: finishing up"}
+{"time":"2026-05-15T21:36:21.3597901-05:00","level":"INFO","msg":"handler: closed"}
+{"time":"2026-05-15T21:36:21.3597901-05:00","level":"INFO","msg":"sender: closed"}
+{"time":"2026-05-15T21:36:21.3597901-05:00","level":"INFO","msg":"stream: all finished"}
