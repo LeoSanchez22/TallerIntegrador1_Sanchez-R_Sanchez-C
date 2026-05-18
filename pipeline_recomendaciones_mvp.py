@@ -68,7 +68,6 @@ if col_cliente:
 else:
     mapa_clientes = {cid: f"Cliente ID {cid}" for cid in compras_ctx['cliente_id'].unique()}
 
-# [NUEVO] Imprimir el directorio de clientes disponibles en la zona
 print("\n" + "="*70)
 print(f"📋 DIRECTORIO DE CLIENTES EN: {zona_activa}")
 print("="*70)
@@ -76,7 +75,6 @@ df_clientes_unicos = compras_ctx.drop_duplicates('cliente_id').sort_values('clie
 for _, row in df_clientes_unicos.iterrows():
     c_id = row['cliente_id']
     c_nombre = row[col_cliente] if col_cliente else f"Cliente {c_id} (Nombre no encontrado en BD)"
-    # Formateamos para que se vea como una tabla limpia
     print(f" 🔸 ID: {c_id:<4} | {c_nombre}")
 print("="*70)
 
@@ -138,7 +136,7 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen):
     return "Descubrimiento: Recomendado por alta afinidad de perfil institucional (NCF)."
 
 # =====================================================================
-# [CAPA VISUAL] GENERADOR DE DIAGRAMA DE ASOCIACIÓN XAI
+# [CAPA VISUAL MLOPS] DIAGRAMA MULTIPARTITO CORREGIDO
 # =====================================================================
 def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
     G = nx.DiGraph()
@@ -147,29 +145,37 @@ def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
     nodo_cliente = f"Cliente {cliente_id}"
     G.add_node(nodo_cliente, color='#87CEFA', size=3500, layer=0)
     
+    # 🛠️ CORRECCIÓN DE NODOS FANTASMA: Identificar todos los items necesarios
+    items_a_mostrar = set(historial[-5:])
+    
+    for rec in recomendaciones_cliente:
+        for item in historial:
+            if item in rec['justificacion_xai']:
+                items_a_mostrar.add(item)
+                
     # CAPA 1: HISTORIAL (Centro)
-    for item in historial[-5:]: 
+    for item in items_a_mostrar: 
         G.add_node(item, color='#98FB98', size=2200, layer=1)
-        G.add_edge(nodo_cliente, item, label="Compra Frecuente", style='solid')
+        etiqueta_borde = "Compra Frecuente" if item in historial[-5:] else "Historial XAI"
+        G.add_edge(nodo_cliente, item, label=etiqueta_borde, style='solid')
         
     # CAPA 2: RECOMENDACIONES (Derecha)
     for rec in recomendaciones_cliente:
         prod_rec = rec['producto_recomendado']
         motor = rec['motor_origen']
-        justificacion = rec['justificacion_xai']
         
         G.add_node(prod_rec, color='#F08080', size=2800, layer=2)
         G.add_edge(nodo_cliente, prod_rec, label=f"Sugerido ({motor})", style='solid')
         
-        # Conexiones XAI (Cross-Selling detectado por Apriori)
-        for item in historial:
-            if item in justificacion:
-                G.add_edge(item, prod_rec, label="Afinidad Apriori", style='dashed')
+        # Conexiones XAI
+        for item in items_a_mostrar:
+            if item in rec['justificacion_xai']:
+                G.add_edge(item, prod_rec, label="Apriori", style='dashed')
 
-    # Configuración de la figura más ancha para las columnas
+    # Configuración de la figura
     fig, ax = plt.subplots(figsize=(16, 9))
     
-    # 🌟 EL SECRETO VISUAL: Layout Multipartito (Columnas perfectas)
+    # Layout Multipartito
     pos = nx.multipartite_layout(G, subset_key="layer", align="horizontal")
     
     # Separar atributos de dibujo
@@ -180,19 +186,18 @@ def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
     nx.draw_networkx_nodes(G, pos, node_color=colores, node_size=tamanos, edgecolors='dimgray', linewidths=1.5, ax=ax)
     nx.draw_networkx_labels(G, pos, font_size=9, font_weight="bold", font_family="sans-serif", ax=ax)
     
-    # Dibujar Aristas separadas (Sólidas y Punteadas)
+    # Dibujar Aristas
     aristas_solidas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'solid']
     aristas_punteadas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'dashed']
     
     nx.draw_networkx_edges(G, pos, edgelist=aristas_solidas, edge_color="gray", arrows=True, arrowsize=15, ax=ax)
-    nx.draw_networkx_edges(G, pos, edgelist=aristas_punteadas, edge_color="tomato", style="dashed", arrows=True, arrowsize=20, width=2.0, connectionstyle="arc3,rad=0.2", ax=ax) # Curvamos la línea para que no se cruce feo
+    nx.draw_networkx_edges(G, pos, edgelist=aristas_punteadas, edge_color="tomato", style="dashed", arrows=True, arrowsize=20, width=2.0, connectionstyle="arc3,rad=0.2", ax=ax)
     
     # Etiquetas de las aristas
     edge_labels = nx.get_edge_attributes(G, 'label')
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=7, font_color='black', ax=ax)
     
-    # 🌟 INYECCIÓN DE MÉTRICAS CIENTÍFICAS (Lo que pidió el Asesor)
-    # Aquí pones los resultados que obtuviste en W&B en el Sprint 2
+    # Tarjeta de métricas
     texto_metricas = (
         "📈 MÉTRICAS DEL MOTOR PREDICTIVO (W&B)\n"
         "────────────────────────────────\n"
@@ -204,12 +209,11 @@ def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
         "Validación científica completada - Sprint 2"
     )
     
-    # Caja de métricas a la derecha
     props = dict(boxstyle='round,pad=0.8', facecolor='#F8F9FA', edgecolor='#CED4DA', alpha=0.9)
     ax.text(1.05, 0.5, texto_metricas, transform=ax.transAxes, fontsize=10,
             verticalalignment='center', bbox=props, fontfamily='monospace')
 
-    # Leyenda Visual abajo a la izquierda
+    # Leyenda Visual
     import matplotlib.lines as mlines
     leyenda_cliente = mlines.Line2D([], [], color='#87CEFA', marker='o', linestyle='None', markersize=10, label='1. Cliente')
     leyenda_historial = mlines.Line2D([], [], color='#98FB98', marker='o', linestyle='None', markersize=10, label='2. Historial de Compra')
@@ -222,7 +226,6 @@ def generar_diagrama_asociacion(cliente_id, historial, recomendaciones_cliente):
     plt.title(f"Inteligencia Explicable (XAI): Mapa de Afinidad Comercial\nInstitución ID: {cliente_id}", fontsize=15, fontweight='bold', pad=15)
     plt.axis('off') 
     
-    # Expandir márgenes para que quepa la caja de métricas
     plt.subplots_adjust(right=0.75)
     
     ruta_imagen = PATHS['production'] / f"diagrama_cliente_{cliente_id}.png"
@@ -273,6 +276,8 @@ for cliente_id in clientes_activos:
                 
             explicacion = generar_explicacion(nombre_producto, historial_nombres, motor)
             
+            ruta_diagrama_asociado = str(PATHS['production'] / f"diagrama_cliente_{cliente_id}.png")
+            
             lista_recomendaciones_finales.append({
                 'cliente_id': cliente_id,
                 'zona_comercial': zona_activa, 
@@ -281,7 +286,8 @@ for cliente_id in clientes_activos:
                 'probabilidad_pct': score_pct,
                 'motor_origen': motor,
                 'justificacion_xai': explicacion,
-                'es_nuevo_para_cliente': 1 if nombre_producto not in historial_nombres else 0
+                'es_nuevo_para_cliente': 1 if nombre_producto not in historial_nombres else 0,
+                'ruta_diagrama_png': ruta_diagrama_asociado
             })
             recomendaciones_aprobadas_cliente += 1
 
@@ -295,7 +301,6 @@ for cliente_id in clientes_activos:
         
         nombre_cliente = mapa_clientes.get(cliente_id, f"ID {cliente_id}")
         
-        # [NUEVO] IMPRESIÓN DEL REPORTE COMERCIAL DETALLADO
         print("\n" + "="*75)
         print(f"📄 BRIEF COMERCIAL DE INTELIGENCIA EXPLICABLE (XAI)")
         print(f"🏥 Institución: {nombre_cliente} (ID: {cliente_id})")
@@ -315,6 +320,7 @@ for cliente_id in clientes_activos:
         print("     clínica ya consume, tu argumento clave debe ser la complementariedad")
         print("     clínica o comercial entre ambos medicamentos.")
         print("="*75 + "\n")
+
 # =====================================================================
 # 4. EXPORTACIÓN A FORMATO PARQUET
 # =====================================================================
@@ -324,7 +330,7 @@ df_output = pd.DataFrame(lista_recomendaciones_finales)
 df_output.to_parquet(OUTPUT_PARQUET, engine='pyarrow', index=False)
 
 print("="*65)
-print(f"✅ PIPELINE BATCH COMPLETADO (MVP - SPRINT 1)")
+print(f"✅ PIPELINE BATCH COMPLETADO (MVP - SPRINT 3)")
 print(f"Ruta dinámica MLOps: {OUTPUT_PARQUET}")
 print(f"Total de sugerencias procesadas y filtradas: {len(df_output)}")
 print("="*65)

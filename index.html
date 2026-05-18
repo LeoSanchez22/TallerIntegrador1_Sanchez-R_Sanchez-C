@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Sophia XAI</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; background-color: #f4f7f6; }
+        .tarjeta { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 800px; }
+        select, button { padding: 10px; font-size: 16px; margin-top: 10px; }
+        button { background-color: #007BFF; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        button:hover { background-color: #0056b3; }
+        img { max-width: 100%; margin-top: 20px; border: 1px solid #ddd; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="tarjeta">
+        <h2>💊 Dashboard Predictivo Comercial</h2>
+        
+        <label for="selector-cliente"><strong>1. Elige un cliente:</strong></label><br>
+        <select id="selector-cliente">
+            <option value="">Cargando clientes...</option>
+        </select>
+        
+        <button onclick="generarPrediccion()">Ver Recomendaciones</button>
+
+        <div id="resultados" style="margin-top: 30px;">
+            </div>
+    </div>
+
+    <script>
+        // 1. Cuando la página carga, le pedimos la lista de clientes a tu API de Python
+        fetch('http://127.0.0.1:8000/api/clientes')
+            .then(respuesta => respuesta.json())
+            .then(data => {
+                const selector = document.getElementById('selector-cliente');
+                selector.innerHTML = ''; // Limpiamos el mensaje de carga
+                
+                // Llenamos el desplegable con los IDs
+                data.clientes_disponibles.forEach(id => {
+                    selector.innerHTML += `<option value="${id}">Institución ID: ${id}</option>`;
+                });
+            });
+
+        // 2. Cuando el usuario hace clic en el botón, buscamos las recomendaciones
+        function generarPrediccion() {
+            const idCliente = document.getElementById('selector-cliente').value;
+            const divResultados = document.getElementById('resultados');
+            
+            divResultados.innerHTML = "<p>Buscando inteligencia comercial...</p>";
+
+            // Llamamos a la API de Python pasando el ID elegido
+            fetch(`http://127.0.0.1:8000/api/recomendaciones/${idCliente}`)
+                .then(respuesta => respuesta.json())
+                .then(data => {
+                    if(data.mensaje) {
+                        divResultados.innerHTML = `<p>${data.mensaje}</p>`;
+                        return;
+                    }
+
+                    // Armamos la tabla de resultados visual
+                    let html = "<h3>Productos Sugeridos:</h3><ul>";
+                    data.datos.forEach(rec => {
+                        html += `<li>
+                                    <strong>${rec.producto_recomendado}</strong> (${rec.probabilidad_pct}% de éxito) <br>
+                                    <small style="color: gray;">XAI: ${rec.justificacion_xai}</small>
+                                 </li>`;
+                    });
+                    html += "</ul>";
+                    
+                    // Mostramos la imagen usando la ruta que guardó el Parquet
+                    // Nota: Para que el navegador local vea la imagen, asumimos que index.html está en la misma raíz que la carpeta 'produccion'
+                    const rutaImagen = data.datos[0].ruta_diagrama_png; 
+                    html += `<h3>Mapa de Afinidad</h3> <img src="${rutaImagen}" alt="Diagrama XAI">`;
+
+                    divResultados.innerHTML = html;
+                });
+        }
+    </script>
+</body>
+</html>
