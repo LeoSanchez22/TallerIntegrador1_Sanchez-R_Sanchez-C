@@ -1,4 +1,4 @@
-print(">>> INICIANDO SCRIPT... CARGANDO LIBRERÍAS (Esto puede tardar unos segundos) <<<")
+print(">>> INICIANDO STREAMILIT... CARGANDO LIBRERÍAS CLOUD Y MLOps <<<")
 import os
 import pandas as pd
 import numpy as np
@@ -10,34 +10,49 @@ from mlxtend.frequent_patterns import apriori, association_rules
 import warnings
 import networkx as nx               
 import matplotlib.pyplot as plt
-import streamlit as st 
+import streamlit as st
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
 
 warnings.filterwarnings('ignore')
 
 # =====================================================================
 # CONFIGURACIÓN DEL DASHBOARD
 # =====================================================================
-st.set_page_config(page_title="Dashboard Sophia XAI", layout="wide")
-st.title("💊 Dashboard Predictivo Comercial y Proyección de Demanda")
-st.markdown("### Laboratorios Sophia — Sistema de Inteligencia Explicable (XAI)")
+st.set_page_config(page_title="Dashboard Sophia XAI Cloud", layout="wide")
+st.title("💊 Dashboard Predictivo Comercial y Proyección de Demanda (Cloud)")
+st.markdown("### Laboratorios Sophia — Sistema de Inteligencia Explicable conectado a Supabase")
 st.markdown("---")
 
 # =====================================================================
-# 1. CARGA DE DATOS (EN CACHÉ PARA MAYOR VELOCIDAD)
+# 1. CARGA DE DATOS DESDE SUPABASE POOLER (EN CACHÉ PARA MAYOR VELOCIDAD)
 # =====================================================================
 DIRECTORIO_RAIZ = Path.cwd() 
 PATHS = {'intermediate': DIRECTORIO_RAIZ / 'data' / 'intermediate'}
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def cargar_datos():
-    compras = pd.read_csv(PATHS['intermediate'] / 'compras_ctx.csv')
-    seq = pd.read_csv(PATHS['intermediate'] / 'secuencias_por_cliente.csv')
-    return compras, seq
+    load_dotenv()
+    db_uri = os.environ.get("DATABASE_URL")
+    
+    try:
+        if not db_uri or "tu_contraseña" in db_uri:
+            raise ValueError("DATABASE_URL no configurada en .env")
+            
+        engine = create_engine(db_uri)
+        compras = pd.read_sql_query("SELECT * FROM ventas_detalle", con=engine)
+        seq = pd.read_sql_query("SELECT * FROM cliente_secuencias", con=engine)
+        return compras, seq
+    except Exception as e:
+        print(f"⚠️ Aviso Supabase Streamlit ({e}). Utilizando CSVs locales como respaldo MLOps...")
+        compras = pd.read_csv(PATHS['intermediate'] / 'compras_ctx.csv')
+        seq = pd.read_csv(PATHS['intermediate'] / 'secuencias_por_cliente.csv')
+        return compras, seq
 
 try:
     compras_ctx, seq_por_cliente = cargar_datos()
 except Exception as e:
-    st.error(f"Error cargando datos: Asegúrate de tener los CSV en data/intermediate/. Error: {e}")
+    st.error(f"Error fatal cargando bases de datos: {e}")
     st.stop()
 
 col_zona = 'vendedor' if 'vendedor' in compras_ctx.columns else 'zona' if 'zona' in compras_ctx.columns else None
