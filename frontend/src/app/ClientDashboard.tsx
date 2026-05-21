@@ -243,7 +243,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 Herramientas Avanzadas
               </label>
               <a
-                href="/jupyter/notebooks/pipeline_recomendaciones_mvp.ipynb"
+                href="/jupyter/notebooks/frontend/public/pipeline_recomendaciones_mvp.ipynb?token=DiegoLeoSophia123"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-3.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 text-sm font-black tracking-widest uppercase rounded-xl transition-all flex items-center justify-center space-x-2 text-center"
