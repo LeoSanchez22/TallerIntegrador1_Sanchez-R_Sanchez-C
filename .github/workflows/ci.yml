@@ -86,42 +86,54 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
+            # 1. Cargar entorno de NVM, Node, NPM y PM2 (Crítico para sesiones SSH no interactivas)
+            export NVM_DIR="$HOME/.nvm"
+            if [ -d "$NVM_DIR" ]; then
+                [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            fi
+            
+            # Cargar perfiles de bash del usuario
+            source ~/.bashrc 2>/dev/null || true
+            source ~/.profile 2>/dev/null || true
+            
+            # Asegurar que PM2 y Node estén en el PATH pase lo que pase
+            export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+            
             echo "========================================="
-            echo "🚀 Iniciando Despliegue de Rama: ${{ github.ref_name }}"
+            echo "Iniciando Despliegue de Rama: ${{ github.ref_name }}"
             echo "========================================="
             
             # Navegar al directorio raíz del proyecto
             cd /var/www/g2-diegoleo
             
             # Actualizar el repositorio con los últimos cambios de Git
-            echo "📥 Actualizando código desde Git..."
+            echo "Actualizando código desde Git..."
             git fetch --all
             git checkout ${{ github.ref_name }}
             git pull origin ${{ github.ref_name }}
             
             # --- 1. ACTUALIZAR Y REINICIAR BACKEND ---
-            echo "⚙️  Actualizando Backend (Hono)..."
+            echo "Actualizando Backend (Hono)..."
             cd /var/www/g2-diegoleo/backend
             npm install --omit=dev
             
-            echo "🔄 Reiniciando backend en PM2 (sophia-backend)..."
+            echo "Reiniciando backend en PM2 (sophia-backend)..."
             pm2 reload sophia-backend || pm2 restart sophia-backend
             
             # --- 2. ACTUALIZAR, COMPILAR Y REINICIAR FRONTEND ---
-            echo "⚙️  Actualizando Frontend (Next.js)..."
+            echo "Actualizando Frontend (Next.js)..."
             cd /var/www/g2-diegoleo/frontend
             npm install
             
-            echo "🏗️  Compilando bundle de producción del Frontend..."
+            echo "Compilando bundle de producción del Frontend..."
             npm run build
             
-            echo "🔄 Reiniciando frontend en PM2 (sophia-frontend)..."
+            echo "Reiniciando frontend en PM2 (sophia-frontend)..."
             pm2 reload sophia-frontend || pm2 restart sophia-frontend
             
             # --- 3. REFRESCAR NGINX ---
-            echo "🌐 Recargando servidor web Nginx..."
+            echo "Recargando servidor web Nginx..."
             nginx-reload-g2
             
             echo "========================================="
-            echo "🎉 ¡Despliegue completado con éxito!"
-            echo "========================================="
+            echo "Despliegue completado"
