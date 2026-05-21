@@ -5,7 +5,7 @@ import { RiRefreshLine, RiExternalLinkLine } from 'react-icons/ri';
 
 export default function NotebookPage() {
   const [iframeKey, setIframeKey] = useState(0);
-  const notebookUrl = "/jupyter/notebooks/frontend/public/pipeline_recomendaciones_mvp.ipynb?token=DiegoLeoSophia123";
+  const notebookUrl = "/jupyter/notebooks/pipeline_recomendaciones_mvp.ipynb?token=DiegoLeoSophia123";
 
   const handleRefresh = () => {
     setIframeKey(prev => prev + 1);
