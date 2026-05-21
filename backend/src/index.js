@@ -7,7 +7,8 @@ import dotenv from 'dotenv'
 import { authMiddleware } from './middleware/auth.js'
 import { precargarDatos, getCachedData, getIsReady } from './config/db.js'
 
-dotenv.config({ path: '../.env' })
+dotenv.config({ path: '../.env' }) // Intenta cargar desde la raíz del proyecto
+dotenv.config() // Si no lo encuentra, intenta desde la carpeta backend/
 
 const app = new Hono()
 
