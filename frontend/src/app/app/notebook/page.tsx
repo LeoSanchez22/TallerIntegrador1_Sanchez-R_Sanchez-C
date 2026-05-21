@@ -5,7 +5,7 @@ import { RiRefreshLine, RiExternalLinkLine } from 'react-icons/ri';
 
 export default function NotebookPage() {
   const [iframeKey, setIframeKey] = useState(0);
-  const notebookUrl = "http://localhost:8888/notebooks/pipeline_recomendaciones_mvp.ipynb";
+  const notebookUrl = "/jupyter/notebooks/pipeline_recomendaciones_mvp.ipynb";
 
   const handleRefresh = () => {
     setIframeKey(prev => prev + 1);
@@ -47,7 +47,7 @@ export default function NotebookPage() {
       {/* Iframe Container */}
       <div className="flex-1 w-full bg-neutral-100 dark:bg-neutral-950 relative">
         <div className="absolute inset-0 flex items-center justify-center text-neutral-400 pointer-events-none">
-          <p className="text-sm font-medium">Cargando Jupyter Server en localhost:8888...</p>
+          <p className="text-sm font-medium">Cargando entorno interactivo Jupyter...</p>
         </div>
         <iframe
           key={iframeKey}

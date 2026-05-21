@@ -243,7 +243,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 Herramientas Avanzadas
               </label>
               <a
-                href="http://localhost:8888/notebooks/pipeline_recomendaciones_mvp.ipynb"
+                href="/jupyter/notebooks/pipeline_recomendaciones_mvp.ipynb"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-3.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 text-sm font-black tracking-widest uppercase rounded-xl transition-all flex items-center justify-center space-x-2 text-center"
@@ -254,7 +254,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 <span>Notebook MVP</span>
               </a>
               <p className="text-[10px] text-neutral-500 mt-2 text-center leading-relaxed">
-                Requiere que <strong className="text-neutral-400">jupyter notebook</strong> esté en ejecución en el puerto 8888 de tu máquina.
+                Requiere que el <strong className="text-neutral-400">entorno Jupyter</strong> esté en ejecución en el servidor.
               </p>
               <div className="mt-3 text-center">
                 <a href="/pipeline_recomendaciones_mvp.ipynb" download className="text-[11px] text-emerald-500 hover:text-emerald-400 hover:underline transition-colors font-medium">
