@@ -42,6 +42,9 @@ jobs:
   test-frontend:
     name: Frontend Typecheck & Build Verification
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://azpwovaiicrkjxxvdjeq.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-placeholder-anon-key-placeholder-anon-key
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
