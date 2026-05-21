@@ -7,8 +7,14 @@ import dotenv from 'dotenv'
 import { authMiddleware } from './middleware/auth.js'
 import { precargarDatos, getCachedData, getIsReady } from './config/db.js'
 
-dotenv.config({ path: '../.env' }) // Intenta cargar desde la raíz del proyecto
-dotenv.config() // Si no lo encuentra, intenta desde la carpeta backend/
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+dotenv.config({ path: path.resolve(__dirname, '../../.env') }) // Raíz del proyecto
+dotenv.config({ path: path.resolve(__dirname, '../.env') }) // Carpeta backend
 
 const app = new Hono()
 
