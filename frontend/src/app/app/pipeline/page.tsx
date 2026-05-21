@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiRefreshLine, RiLoader4Line } from "react-icons/ri";
+import { fetchWithAuth } from '../../../lib/apiClient';
 import PipelineStatus from "../../../components/PipelineStatus";
 import TransactionTable from "../../../components/TransactionTable";
 import DataQualityMetrics from "../../../components/DataQualityMetrics";
@@ -9,11 +10,19 @@ import DataQualityMetrics from "../../../components/DataQualityMetrics";
 export default function DataPipeline() {
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchPipeline = useCallback((signal?: AbortSignal) => {
     setLoading(true);
-    fetch('http://127.0.0.1:3005/api/pipeline', { signal })
-      .then(res => res.json())
+    setError(null);
+    fetchWithAuth('/api/pipeline', { signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         setPipelineData(data);
         setLoading(false);
@@ -21,6 +30,7 @@ export default function DataPipeline() {
       .catch(err => {
         if (err.name !== 'AbortError') {
           console.error(err);
+          setError(err.message || 'Error de conexión con el servidor.');
           setLoading(false);
         }
       });
@@ -60,6 +70,11 @@ export default function DataPipeline() {
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <RiLoader4Line className="w-10 h-10 text-emerald-500 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">
+          <p className="text-red-400 text-xl font-bold mb-2">Error de Conexión: {error}</p>
+          <p className="text-neutral-400 text-sm">Verifica que tu SUPABASE_JWT_SECRET coincida con tu proyecto de Supabase en el archivo .env del backend.</p>
         </div>
       ) : (
         <>

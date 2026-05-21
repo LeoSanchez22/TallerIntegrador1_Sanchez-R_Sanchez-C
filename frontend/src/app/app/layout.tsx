@@ -16,6 +16,7 @@ import {
   RiSunLine,
   RiMoonLine,
   RiLineChartLine,
+  RiTerminalBoxLine,
 } from "react-icons/ri";
 import { supabase } from "../../lib/supabase";
 
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { path: "/app/forecasting", icon: RiLineChartLine, label: "Pronóstico" },
     { path: "/app/statistics", icon: RiBarChartBoxLine, label: "Estadísticas" },
     { path: "/app/pipeline", icon: RiDatabase2Line, label: "Data Pipeline" },
+    { path: "/app/notebook", icon: RiTerminalBoxLine, label: "Notebook MVP" },
     { path: "/app/profile", icon: RiUserLine, label: "Mi Perfil" },
   ];
 

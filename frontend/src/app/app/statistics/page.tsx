@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiLoader4Line } from "react-icons/ri";
+import { fetchWithAuth } from '../../../lib/apiClient';
 import StatsMetrics from "../../../components/StatsMetrics";
 import PrecisionChart from "../../../components/PrecisionChart";
 import HitRateChart from "../../../components/HitRateChart";
@@ -13,6 +14,7 @@ export default function Statistics() {
   const [selectedZona, setSelectedZona] = useState<string>('Todas');
   const [statsData, setStatsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // Sync theme for dynamic Recharts rendering
@@ -31,21 +33,34 @@ export default function Statistics() {
   // Cargar Zonas
   useEffect(() => {
     let active = true;
-    fetch('http://127.0.0.1:3005/api/zonas')
-      .then(res => res.json())
+    fetchWithAuth('/api/zonas')
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         if (active && data.zonas) setZonas(['Todas', ...data.zonas]);
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error("Error cargando zonas:", err));
     return () => { active = false; };
   }, []);
 
   // Cargar Stats con abort controllers para evitar lag y llamadas repetitivas
   const fetchStats = useCallback((zona: string) => {
     setLoading(true);
+    setError(null);
     const controller = new AbortController();
-    fetch(`http://127.0.0.1:3005/api/statistics?zona=${encodeURIComponent(zona)}`, { signal: controller.signal })
-      .then(res => res.json())
+    fetchWithAuth(`/api/statistics?zona=${encodeURIComponent(zona)}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `Error ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         setStatsData(data);
         setLoading(false);
@@ -53,6 +68,7 @@ export default function Statistics() {
       .catch(err => {
         if (err.name !== 'AbortError') {
           console.error(err);
+          setError(err.message || 'Error de conexión con el servidor.');
           setLoading(false);
         }
       });
@@ -124,6 +140,11 @@ export default function Statistics() {
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <RiLoader4Line className="w-10 h-10 text-emerald-500 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">
+          <p className="text-red-400 text-xl font-bold mb-2">Error de Conexión: {error}</p>
+          <p className="text-neutral-400 text-sm">Verifica que tu SUPABASE_JWT_SECRET coincida con tu proyecto de Supabase en el archivo .env del backend.</p>
         </div>
       ) : (
         <>

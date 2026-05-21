@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { API_URL } from '../config'
 
 interface ProyeccionItem {
   producto: string
@@ -80,7 +81,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     setLoading(true)
     setProyeccionData(null)
     try {
-      const res = await fetch(`http://127.0.0.1:3005/api/proyeccion/${selectedCliente}`)
+      const res = await fetch(`${API_URL}/api/proyeccion/${selectedCliente}`)
       if (!res.ok) throw new Error("Error en la proyección")
       const result = await res.json()
       setProyeccionData(result)
@@ -236,6 +237,32 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 <span>Ejecutar Simulación</span>
               )}
             </button>
+
+            <div className="mt-8 pt-6 border-t border-neutral-800">
+              <label className="block text-neutral-400 text-xs font-black uppercase tracking-widest mb-3">
+                Herramientas Avanzadas
+              </label>
+              <a
+                href="http://localhost:8888/notebooks/pipeline_recomendaciones_mvp.ipynb"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:border-blue-500/50 text-sm font-black tracking-widest uppercase rounded-xl transition-all flex items-center justify-center space-x-2 text-center"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Notebook MVP</span>
+              </a>
+              <p className="text-[10px] text-neutral-500 mt-2 text-center leading-relaxed">
+                Requiere que <strong className="text-neutral-400">jupyter notebook</strong> esté en ejecución en el puerto 8888 de tu máquina.
+              </p>
+              <div className="mt-3 text-center">
+                <a href="/pipeline_recomendaciones_mvp.ipynb" download className="text-[11px] text-emerald-500 hover:text-emerald-400 hover:underline transition-colors font-medium">
+                  ↓ Descargar archivo .ipynb
+                </a>
+              </div>
+            </div>
+
           </div>
         </div>
       </aside>

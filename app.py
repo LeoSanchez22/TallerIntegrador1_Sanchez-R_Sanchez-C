@@ -18,12 +18,10 @@ warnings.filterwarnings('ignore')
 
 # =====================================================================
 # CONFIGURACIÓN DEL DASHBOARD
-# =====================================================================
 st.set_page_config(page_title="Dashboard Sophia XAI Cloud", layout="wide")
 st.title("💊 Dashboard Predictivo Comercial y Proyección de Demanda (Cloud)")
 st.markdown("### Laboratorios Sophia — Sistema de Inteligencia Explicable conectado a Supabase")
 st.markdown("---")
-
 # =====================================================================
 # 1. CARGA DE DATOS DESDE SUPABASE POOLER (EN CACHÉ PARA MAYOR VELOCIDAD)
 # =====================================================================

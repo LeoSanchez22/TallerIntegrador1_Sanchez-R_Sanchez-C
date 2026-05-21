@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { RiLoader4Line } from "react-icons/ri";
+import { fetchWithAuth } from '../../lib/apiClient';
 import KPICards from "../../components/KPICards";
 
 export default function Dashboard() {
@@ -9,25 +10,39 @@ export default function Dashboard() {
   const [selectedZona, setSelectedZona] = useState<string>('Todas');
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Cargar Zonas
   useEffect(() => {
     let active = true;
-    fetch('http://127.0.0.1:3005/api/zonas')
-      .then(res => res.json())
+    fetchWithAuth('/api/zonas')
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         if (active && data.zonas) setZonas(['Todas', ...data.zonas]);
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error("Error cargando zonas comercial:", err));
     return () => { active = false; };
   }, []);
 
   // Cargar KPIs con optimización de cancelado/debouncing para evitar ciclos o lags
   const fetchDashboardData = useCallback((zona: string) => {
     setLoading(true);
+    setError(null);
     const controller = new AbortController();
-    fetch(`http://127.0.0.1:3005/api/dashboard?zona=${encodeURIComponent(zona)}`, { signal: controller.signal })
-      .then(res => res.json())
+    fetchWithAuth(`/api/dashboard?zona=${encodeURIComponent(zona)}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `Error ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         setDashboardData(data);
         setLoading(false);
@@ -35,6 +50,7 @@ export default function Dashboard() {
       .catch(err => {
         if (err.name !== 'AbortError') {
           console.error(err);
+          setError(err.message || 'Error de conexión con el servidor.');
           setLoading(false);
         }
       });
@@ -81,6 +97,11 @@ export default function Dashboard() {
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <RiLoader4Line className="w-10 h-10 text-emerald-500 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">
+          <p className="text-red-400 text-xl font-bold mb-2">Error de Conexión: {error}</p>
+          <p className="text-neutral-400 text-sm">Verifica que tu SUPABASE_JWT_SECRET coincida con tu proyecto de Supabase en el archivo .env del backend.</p>
         </div>
       ) : (
         <>

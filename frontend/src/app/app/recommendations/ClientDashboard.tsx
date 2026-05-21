@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { fetchWithAuth } from '../../../lib/apiClient'
 import { ListChecks, Network, TrendingUp } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
@@ -46,6 +47,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [activeMes, setActiveMes] = useState('Mes +1 (Próximo Mes)')
   const [hoveredEnlace, setHoveredEnlace] = useState<any>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [error, setError] = useState<string | null>(null)
 
   // Sync theme changes dynamically to prevent rendering outdated color channels in Recharts
   useEffect(() => {
@@ -135,18 +137,22 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     if (!selectedCliente) return
     setLoading(true)
     setProyeccionData(null)
+    setError(null)
     try {
-      const res = await fetch(`http://127.0.0.1:3005/api/proyeccion/${selectedCliente}`)
-      if (!res.ok) throw new Error("Error en la proyección")
+      const res = await fetchWithAuth(`/api/proyeccion/${selectedCliente}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.details || errData.error || `HTTP ${res.status}`);
+      }
       const result = await res.json()
       setProyeccionData(result)
       const meses = Object.keys(result.proyecciones)
       if (meses.length > 0) {
         setActiveMes(meses[0])
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Hubo un error calculando las inferencias del cliente.")
+      setError(err.message || "Hubo un error calculando las inferencias del cliente.")
     } finally {
       setLoading(false)
     }
@@ -310,6 +316,15 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
 
       {/* ÁREA PRINCIPAL DEL DASHBOARD */}
       <main className="flex-1 w-full min-w-0">
+        {error && (
+          <div className="text-center p-12 mb-6 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl animate-fadeIn">
+            <p className="text-red-400 text-xl font-bold mb-2">Error de Simulación: {error}</p>
+            <p className="text-neutral-400 text-sm">
+              Verifique su sesión de Supabase Auth o asegúrese de que el backend Hono y el archivo .env están configurados correctamente con la firma JWT válida.
+            </p>
+          </div>
+        )}
+
         {!loading && !proyeccionData && (
           <div className="flex flex-col items-center justify-center p-20 bg-white dark:bg-neutral-900/40 rounded-3xl border border-neutral-200 dark:border-neutral-800/50 h-[calc(100vh-16rem)] min-h-[500px] text-center shadow-xl transition-all duration-200">
             <div className="w-20 h-20 rounded-3xl bg-neutral-100 dark:bg-neutral-800/50 flex items-center justify-center mb-6 border border-neutral-200 dark:border-neutral-700/50 shadow-inner">
