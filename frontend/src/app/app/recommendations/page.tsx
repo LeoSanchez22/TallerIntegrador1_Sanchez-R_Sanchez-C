@@ -55,7 +55,7 @@ export default function Page() {
       ) : error ? (
         <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">
           <p className="text-red-400 text-xl font-bold mb-2">Error de Conexión: {error}</p>
-          <p className="text-neutral-400 text-sm">Asegúrate de que la terminal del backend en Hono está corriendo en el puerto 5005.</p>
+          <p className="text-neutral-400 text-sm">Asegúrate de que el servidor backend esté en ejecución y accesible.</p>
         </div>
       ) : (
         <ClientDashboard initialData={recomendaciones} />

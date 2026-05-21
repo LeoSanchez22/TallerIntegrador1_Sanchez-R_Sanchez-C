@@ -2,8 +2,14 @@ import { verify, decode, verifyWithJwks } from 'hono/jwt'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
 
-dotenv.config({ path: '../.env' }) // Intenta cargar desde la raíz del proyecto
-dotenv.config() // Si no lo encuentra, intenta desde la carpeta backend/
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+dotenv.config({ path: path.resolve(__dirname, '../../.env') })
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
 // Caché y referencias en memoria para rendimiento óptimo
 let cryptoKeyBase64 = null
