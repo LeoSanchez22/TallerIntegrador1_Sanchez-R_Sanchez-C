@@ -1,0 +1,40 @@
+{
+  "os": "Windows-11-10.0.26200-SP0",
+  "python": "CPython 3.14.0",
+  "startedAt": "2026-05-16T02:25:31.629414Z",
+  "program": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C\\PruebaConContexto.ipynb",
+  "codePath": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C\\PruebaConContexto.ipynb",
+  "codePathLocal": "PruebaConContexto.ipynb",
+  "git": {
+    "remote": "https://github.com/LeoSanchez22/TallerIntegrador1_Sanchez-R_Sanchez-C.git",
+    "commit": "35e0ff6e1d3289444d30b0890d436ba10771f207"
+  },
+  "email": "lsanchezr29@upao.edu.pe",
+  "root": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C",
+  "host": "LeoPC",
+  "executable": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C\\.venv\\Scripts\\python.exe",
+  "cpu_count": 24,
+  "cpu_count_logical": 32,
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "1999385915392",
+      "used": "329607618560"
+    }
+  },
+  "memory": {
+    "total": "85627600896"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4060",
+      "memoryTotal": "8585740288",
+      "cudaCores": 3072,
+      "architecture": "Ada",
+      "uuid": "GPU-c52dc15b-2d90-c61f-3ac3-8182808835a4"
+    }
+  ],
+  "cudaVersion": "13.2",
+  "writerId": "875j6zkhbd1onw7ipolazzffdeddnmzu"
+}

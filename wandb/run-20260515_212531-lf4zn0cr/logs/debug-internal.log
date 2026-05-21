@@ -1,0 +1,19 @@
+{"time":"2026-05-15T21:25:31.6351543-05:00","level":"INFO","msg":"wandb-core"}
+{"time":"2026-05-15T21:25:31.6361574-05:00","level":"INFO","msg":"stream: starting","core version":"0.27.0"}
+{"time":"2026-05-15T21:25:32.0891694-05:00","level":"INFO","msg":"stream: created new stream","id":"lf4zn0cr"}
+{"time":"2026-05-15T21:25:32.0891694-05:00","level":"INFO","msg":"handler: started"}
+{"time":"2026-05-15T21:25:32.0902385-05:00","level":"INFO","msg":"stream: started"}
+{"time":"2026-05-15T21:25:32.0902385-05:00","level":"INFO","msg":"writer: started","stream_id":"lf4zn0cr"}
+{"time":"2026-05-15T21:25:32.0902385-05:00","level":"INFO","msg":"sender: started"}
+{"time":"2026-05-15T21:25:32.9841053-05:00","level":"INFO","msg":"filestream: sending request","total_files":1}
+{"time":"2026-05-15T21:25:33.5068833-05:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-05-15T21:25:47.9873457-05:00","level":"INFO","msg":"filestream: sending request","total_files":3,"history_offset":0,"history_lines":38,"events_offset":0,"events_lines":2,"uploaded_len":2}
+{"time":"2026-05-15T21:25:48.9797798-05:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-05-15T21:25:53.6500787-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2026-05-15T21:25:53.6512049-05:00","level":"INFO","msg":"filestream: sending request","total_files":2,"history_offset":38,"history_lines":12,"uploaded_len":2,"complete":true,"exit_code":0}
+{"time":"2026-05-15T21:25:54.3917522-05:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-05-15T21:25:54.4574542-05:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2026-05-15T21:25:54.4614307-05:00","level":"INFO","msg":"stream: finishing up"}
+{"time":"2026-05-15T21:25:54.4614307-05:00","level":"INFO","msg":"handler: closed"}
+{"time":"2026-05-15T21:25:54.461934-05:00","level":"INFO","msg":"sender: closed"}
+{"time":"2026-05-15T21:25:54.461934-05:00","level":"INFO","msg":"stream: all finished"}

@@ -1,0 +1,17 @@
+{
+  "os": "Windows-11-10.0.26200-SP0",
+  "python": "CPython 3.14.0",
+  "startedAt": "2026-05-16T02:22:27.539205Z",
+  "program": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C\\PruebaConContexto.ipynb",
+  "codePath": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C\\PruebaConContexto.ipynb",
+  "codePathLocal": "PruebaConContexto.ipynb",
+  "git": {
+    "remote": "https://github.com/LeoSanchez22/TallerIntegrador1_Sanchez-R_Sanchez-C.git",
+    "commit": "35e0ff6e1d3289444d30b0890d436ba10771f207"
+  },
+  "email": "lsanchezr29@upao.edu.pe",
+  "root": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C",
+  "host": "LeoPC",
+  "executable": "c:\\Users\\leoro\\OneDrive\\Documentos\\GitHub\\TallerIntegrador1_Sanchez-R_Sanchez-C\\.venv\\Scripts\\python.exe",
+  "writerId": "pmrc7t159hz1wl3oegseqbeufuzrmc1l"
+}

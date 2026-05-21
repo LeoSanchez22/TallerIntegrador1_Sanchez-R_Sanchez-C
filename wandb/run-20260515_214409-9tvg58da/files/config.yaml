@@ -1,0 +1,76 @@
+_wandb:
+    value:
+        cli_version: 0.27.0
+        e:
+            paviwdwsqaegxwpw3tzksao5dbvpuilt:
+                codePath: c:\Users\leoro\OneDrive\Documentos\GitHub\TallerIntegrador1_Sanchez-R_Sanchez-C\PruebaConContexto.ipynb
+                codePathLocal: PruebaConContexto.ipynb
+                cpu_count: 24
+                cpu_count_logical: 32
+                cudaVersion: "13.2"
+                disk:
+                    /:
+                        total: "1999385915392"
+                        used: "332317585408"
+                email: lsanchezr29@upao.edu.pe
+                executable: c:\Users\leoro\OneDrive\Documentos\GitHub\TallerIntegrador1_Sanchez-R_Sanchez-C\.venv\Scripts\python.exe
+                git:
+                    commit: 35e0ff6e1d3289444d30b0890d436ba10771f207
+                    remote: https://github.com/LeoSanchez22/TallerIntegrador1_Sanchez-R_Sanchez-C.git
+                gpu: NVIDIA GeForce RTX 4060
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ada
+                      cudaCores: 3072
+                      memoryTotal: "8585740288"
+                      name: NVIDIA GeForce RTX 4060
+                      uuid: GPU-c52dc15b-2d90-c61f-3ac3-8182808835a4
+                host: LeoPC
+                memory:
+                    total: "85627600896"
+                os: Windows-11-10.0.26200-SP0
+                program: c:\Users\leoro\OneDrive\Documentos\GitHub\TallerIntegrador1_Sanchez-R_Sanchez-C\PruebaConContexto.ipynb
+                python: CPython 3.14.0
+                root: c:\Users\leoro\OneDrive\Documentos\GitHub\TallerIntegrador1_Sanchez-R_Sanchez-C
+                startedAt: "2026-05-16T02:44:09.535651Z"
+                writerId: paviwdwsqaegxwpw3tzksao5dbvpuilt
+        m: []
+        python_version: 3.14.0
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+            "2":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+            "3":
+                - 1
+                - 2
+                - 13
+                - 16
+            "4": 3.14.0
+            "5": 0.27.0
+            "6": 5.8.1
+            "8":
+                - 1
+                - 3
+            "12": 0.27.0
+            "13": windows-amd64
+arquitectura:
+    value: LSTM_ConContexto
+batch_size:
+    value: 64
+epochs:
+    value: 50
+learning_rate:
+    value: 0.001
+optimizador:
+    value: Adam
+weight_decay:
+    value: 1e-05

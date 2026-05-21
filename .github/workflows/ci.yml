@@ -1,0 +1,124 @@
+name: CI/CD Pipeline - Sophia XAI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - develo
+      - development
+  pull_request:
+    branches:
+      - main
+      - develop
+      - develo
+      - development
+
+jobs:
+  test-backend:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'backend/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm test
+
+  test-frontend:
+    name: Frontend Typecheck & Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Verify TypeScript Types
+        run: |
+          cd frontend
+          npm run test
+
+      - name: Run Frontend Build Verification
+        run: |
+          cd frontend
+          npm run build
+
+  deploy:
+    name: Deploy to VPS
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    # Se ejecuta solo en pushes a ramas de despliegue, no en pull requests
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'develop' || github.ref_name == 'develo' || github.ref_name == 'development')
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            echo "========================================="
+            echo "🚀 Iniciando Despliegue de Rama: ${{ github.ref_name }}"
+            echo "========================================="
+            
+            # Navegar al directorio raíz del proyecto
+            cd /var/www/g2-diegoleo
+            
+            # Actualizar el repositorio con los últimos cambios de Git
+            echo "📥 Actualizando código desde Git..."
+            git fetch --all
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+            
+            # --- 1. ACTUALIZAR Y REINICIAR BACKEND ---
+            echo "⚙️  Actualizando Backend (Hono)..."
+            cd /var/www/g2-diegoleo/backend
+            npm install --omit=dev
+            
+            echo "🔄 Reiniciando backend en PM2 (sophia-backend)..."
+            pm2 reload sophia-backend || pm2 restart sophia-backend
+            
+            # --- 2. ACTUALIZAR, COMPILAR Y REINICIAR FRONTEND ---
+            echo "⚙️  Actualizando Frontend (Next.js)..."
+            cd /var/www/g2-diegoleo/frontend
+            npm install
+            
+            echo "🏗️  Compilando bundle de producción del Frontend..."
+            npm run build
+            
+            echo "🔄 Reiniciando frontend en PM2 (sophia-frontend)..."
+            pm2 reload sophia-frontend || pm2 restart sophia-frontend
+            
+            # --- 3. REFRESCAR NGINX ---
+            echo "🌐 Recargando servidor web Nginx..."
+            nginx-reload-g2
+            
+            echo "========================================="
+            echo "🎉 ¡Despliegue completado con éxito!"
+            echo "========================================="
