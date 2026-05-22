@@ -55,7 +55,6 @@ export default function NotebookPage() {
           className="relative z-10 w-full h-full border-0"
           title="Jupyter Notebook"
           allow="clipboard-read; clipboard-write"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
         />
       </div>
     </div>
