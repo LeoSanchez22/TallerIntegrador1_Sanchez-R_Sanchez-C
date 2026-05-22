@@ -4,7 +4,7 @@ const nextConfig = {
     return [
       {
         source: '/jupyter/:path*',
-        destination: 'http://127.0.0.1:8888/jupyter/:path*' // Proxy transparente hacia el servidor Jupyter en PM2
+        destination: 'http://[::1]:8888/jupyter/:path*' // Proxy transparente hacia el servidor Jupyter en PM2 (usando IPv6)
       }
     ]
   }
