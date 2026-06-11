@@ -183,13 +183,12 @@ with st.expander("🛡️ Auditoría de Reglas de Negocio y Filtros (Restriccion
     st.markdown("""
     Esta capa audita las predicciones matemáticas de la Inteligencia Artificial **antes** de mostrarlas al visitador médico, garantizando viabilidad comercial:
 
-    * 📦 **Disponibilidad Zonal (Stock):** Bloquea recomendaciones de productos que no tienen inventario en la zona actual (Ej. *ZEBESTEN* restringido automáticamente en *PHARMA - N2*).
-    * 🛑 **Prevención de Canibalización:** Evita sugerir versiones alternativas o premium si el cliente ya consume la línea base (Ej. Bloquea *LAGRICEL PF* si detecta consumo activo de *LAGRICEL*).
-    * ❄️ **Motor Híbrido (Cold-Start):** Si el cliente tiene un historial pobre (menos de 3 compras), la red neuronal se apaga y el sistema despliega el recomendador de *Popularidad Zonal*, excluyendo ítems que el cliente ya posee.
-    * 🧹 **Filtro de Entrenamiento:** El modelo base de Deep Learning ignoró devoluciones y cobros atrasados, aprendiendo **únicamente** de entregas físicas reales y secuencias de recompra.
+    * 📦 **Disponibilidad Zonal (Stock):** Bloquea recomendaciones de productos que no tienen inventario en la zona actual.
+    * 🛑 **Prevención de Canibalización:** Evita sugerir versiones alternativas o premium si el cliente ya consume la línea base.
+    * ❄️ **Motor Híbrido (Cold-Start):** Si el cliente tiene un historial pobre (menos de 3 compras), la red neuronal se apaga y el sistema despliega el recomendador de *Popularidad Zonal*.
+    * 🧹 **Filtro de Entrenamiento:** El modelo ignoró devoluciones y cobros atrasados, aprendiendo **únicamente** de entregas físicas reales.
     """)
 
-# Diccionario de Seguridad
 INVENTARIO_REGIONAL = {
     'PHARMA - N2': ['ZEBESTEN', 'DUSTALOX'],
     'PHARMA - N1': ['LAGRICEL'],
@@ -209,14 +208,13 @@ def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual):
 # =====================================================================
 with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
     st.markdown("""
-    **Transforma proyecciones en hechos.** Al registrar el cierre de una venta aquí, el dato viaja a Supabase. 
-    La red neuronal **Attention-GRU** absorberá instantáneamente este producto en su memoria secuencial, recalibrando los pesos de atención para las recomendaciones del próximo mes.
+    **Transforma proyecciones en hechos.** Al registrar el cierre de una venta aquí, el dato viaja a Supabase (o archivo local). 
+    La red neuronal **Attention-GRU** absorberá instantáneamente este producto en su memoria secuencial, recalibrando los pesos de atención.
     """)
     
     with st.form("form_registro_venta"):
         c1, c2 = st.columns(2)
         with c1:
-            # Lista de productos disponibles para registrar
             producto_a_vender = st.selectbox("Fármaco vendido al cliente:", list(mapa_productos.values()))
         with c2:
             cantidad_vendida = st.number_input("Cantidad cerrada (Unidades):", min_value=1, value=10)
@@ -224,17 +222,15 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
         submit_venta = st.form_submit_button("💾 Guardar Venta y Reentrenar Contexto MLOps")
         
         if submit_venta:
-            # 1. Recuperar los IDs internos para la Base de Datos
             prod_id_vendido = list(mapa_productos.keys())[list(mapa_productos.values()).index(producto_a_vender)]
             cliente_nombre_str = opciones_clientes[cliente_seleccionado].split(" - ")[-1] if " - " in opciones_clientes[cliente_seleccionado] else opciones_clientes[cliente_seleccionado]
             
-            # 2. Inyección Híbrida (Supabase Cloud o CSV Local)
             try:
-                load_dotenv() # Aseguramos cargar las variables de entorno
+                load_dotenv() 
                 db_uri = os.environ.get("DATABASE_URL")
                 
                 if db_uri and "tu_contraseña" not in db_uri:
-                    # MODO CLOUD: Guardar en Supabase
+                    # MODO CLOUD
                     engine_insert = create_engine(db_uri)
                     query_insert = text("""
                         INSERT INTO ventas_detalle (vendedor, cliente, producto, cliente_id, producto_id, cantidad, mes_num) 
@@ -242,30 +238,19 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
                     """)
                     with engine_insert.begin() as conn:
                         conn.execute(query_insert, {
-                            "zon": zona_activa,
-                            "cli": cliente_nombre_str,
-                            "prod": producto_a_vender,
-                            "cid": cliente_seleccionado,
-                            "pid": prod_id_vendido,
-                            "cant": cantidad_vendida,
-                            "mes": MES_ACTUAL
+                            "zon": zona_activa, "cli": cliente_nombre_str, "prod": producto_a_vender,
+                            "cid": cliente_seleccionado, "pid": prod_id_vendido, "cant": cantidad_vendida, "mes": MES_ACTUAL
                         })
                     modo_guardado = "Supabase (Nube)"
                 else:
-                    # MODO MLOps LOCAL: Guardar directamente en el CSV
+                    # MODO LOCAL CSV
                     csv_path = PATHS['intermediate'] / 'compras_ctx.csv'
                     if csv_path.exists():
                         df_local = pd.read_csv(csv_path)
                         nueva_fila = pd.DataFrame([{
-                            "vendedor": zona_activa,
-                            "cliente": cliente_nombre_str,
-                            "producto": producto_a_vender,
-                            "cliente_id": cliente_seleccionado,
-                            "producto_id": prod_id_vendido,
-                            "cantidad": cantidad_vendida,
-                            "mes_num": MES_ACTUAL
+                            "vendedor": zona_activa, "cliente": cliente_nombre_str, "producto": producto_a_vender,
+                            "cliente_id": cliente_seleccionado, "producto_id": prod_id_vendido, "cantidad": cantidad_vendida, "mes_num": MES_ACTUAL
                         }])
-                        # Concatenamos la nueva venta y sobreescribimos el CSV
                         df_actualizado = pd.concat([df_local, nueva_fila], ignore_index=True)
                         df_actualizado.to_csv(csv_path, index=False)
                         modo_guardado = "Archivos CSV (Local)"
@@ -273,14 +258,50 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
                         st.error("⚠️ No se encontró la base de datos en la nube ni el archivo CSV local.")
                         st.stop()
                 
-                # 3. Forzar a la IA a "Despertar" y leer la nueva realidad
-                cargar_datos.clear() # Borra la caché de lectura
-                
-                st.success(f"✅ ¡Venta confirmada en {modo_guardado}! Se inyectaron {cantidad_vendida} unidades de {producto_a_vender} al tensor de memoria del cliente. Por favor, haz clic nuevamente en 'Generar Diagnóstico' para recalibrar las predicciones.")
-                
+                cargar_datos.clear() 
+                st.success(f"✅ ¡Venta confirmada en {modo_guardado}! Se inyectaron {cantidad_vendida} unidades de {producto_a_vender} al tensor de memoria. Por favor, haz clic nuevamente en 'Generar Diagnóstico' para recalibrar.")
             except Exception as e:
                 st.error(f"⚠️ Error al registrar la venta: {e}")
-                
+
+# =====================================================================
+# 3.8 TRAZABILIDAD DE DATOS (AUDITORÍA PARA EL ASESOR)
+# =====================================================================
+st.markdown("---")
+st.markdown("#### 🔍 Trazabilidad del Historial (Data Cruda para la IA)")
+st.caption("Auditoría de los registros reales extraídos de la base de datos que alimentarán los tensores de PyTorch.")
+
+if cliente_seleccionado:
+    historial_crudo = compras_ctx[compras_ctx['cliente_id'] == cliente_seleccionado].copy()
+    
+    if not historial_crudo.empty:
+        col_auditoria1, col_auditoria2 = st.columns([1.5, 1])
+        
+        with col_auditoria1:
+            st.markdown("**1. Secuencia Temporal (Entrada para la Red GRU):**")
+            columnas_mostrar = ['mes_nombre', 'producto', 'cantidad', 'monto_cancelado'] if 'monto_cancelado' in historial_crudo.columns else ['mes_nombre', 'producto', 'cantidad'] if 'mes_nombre' in historial_crudo.columns else ['mes', 'producto', 'cantidad']
+            
+            rename_dict = {'mes_nombre': 'Mes (Temporalidad)', 'mes': 'Mes Num', 'producto': 'Fármaco Comprado', 'cantidad': 'Volumen', 'monto_cancelado': 'Ticket ($)'}
+            historial_mostrar = historial_crudo[columnas_mostrar].rename(columns=rename_dict)
+            st.dataframe(historial_mostrar, use_container_width=True, height=200)
+            
+        with col_auditoria2:
+            st.markdown("**2. Frecuencia Acumulada (Entrada NCF):**")
+            frecuencia_mostrar = historial_crudo.groupby('producto')['cantidad'].sum().reset_index().sort_values(by='cantidad', ascending=False).rename(columns={
+                'producto': 'Fármaco', 'cantidad': 'Unidades Históricas'
+            })
+            st.dataframe(frecuencia_mostrar, use_container_width=True, height=200)
+            
+        total_compras = len(historial_crudo)
+        producto_top = frecuencia_mostrar.iloc[0]['Fármaco']
+        
+        if total_compras < 3:
+            st.info(f"**Diagnóstico:** Este cliente solo tiene {total_compras} registros históricos. El sistema delegará la predicción al motor **Cold-Start (Popularidad Zonal)**.")
+        else:
+            st.success(f"**Diagnóstico:** Secuencia válida de {total_compras} transacciones. La red **Attention-GRU** proyectará temporalidad; el motor **NCF** buscará clínicas afines a **{producto_top}**.")
+    else:
+        st.warning("El cliente seleccionado no posee registros históricos de compra.")
+st.markdown("---")
+
 # =====================================================================
 # 4. COLD START HÍBRIDO
 # =====================================================================
@@ -297,7 +318,7 @@ def prediccion_cold_start(zona_activa, historial_ids):
     return top_zona, "Popularidad Zonal"
 
 # =====================================================================
-# 5. MOTOR XAI CON GOOGLE GEMINI (INYECCIÓN DINÁMICA DE REGLAS DEL GRAFO)
+# 5. MOTOR XAI CON GOOGLE GEMINI (INYECCIÓN DINÁMICA)
 # =====================================================================
 def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, item_foco_tensor=None, peso_tensor=None):
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -308,21 +329,18 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, hori
     mes_texto      = horizonte_mes.split(" (")[1].replace(")", "").lower() if "(" in horizonte_mes else horizonte_mes.lower()
     historial_base = item_foco_tensor if motor_origen == 'Atención-GRU' else (historial_cliente[-1] if historial_cliente else "Productos habituales")
 
-    # Evaluamos si estamos en una predicción autorregresiva (Mes 2 o 3)
-    es_autorregresivo = "Mes +2" in horizonte_mes or "Mes +3" in horizonte_mes
+    es_autorregresivo = "Mes +1" in horizonte_mes or "Mes +2" in horizonte_mes
 
-    # Construcción DINÁMICA de la Lógica Matemática para Gemini
     if motor_origen == 'Atención-GRU':
-        logica_xai = f"El modelo detectó una 'Causalidad GRU' secuencial. La capa de atención asignó {peso_tensor}% de relevancia al consumo histórico de '{historial_base}'. Esto indica matemáticamente un ciclo de reposición inminente en el tiempo."
+        logica_xai = f"El modelo detectó una 'Causalidad GRU' secuencial. La capa de atención asignó {peso_tensor}% de relevancia al consumo histórico de '{historial_base}'. Esto indica un ciclo de reposición inminente en el tiempo."
     elif motor_origen == 'Cold Start':
         logica_xai = f"Activación de 'Cold Start'. Al carecer de historial suficiente, '{producto_sugerido}' se recomienda por tener alta adopción en otras clínicas de la zona."
-    else: # NCF
-        logica_xai = f"El modelo detectó una 'Afinidad NCF'. Evaluando el Espacio Latente, encontró que clínicas con un perfil estructural idéntico a esta, que ya consumen '{historial_base}', tienen una probabilidad muy alta de adoptar '{producto_sugerido}', independientemente del ciclo temporal."
+    else:
+        logica_xai = f"El modelo detectó una 'Afinidad NCF'. Evaluando el Espacio Latente, encontró que clínicas con un perfil estructural idéntico a esta, que ya consumen '{historial_base}', tienen una probabilidad muy alta de adoptar '{producto_sugerido}'."
 
     if es_autorregresivo:
-        logica_xai += f" IMPORTANTE: Esta es una proyección autorregresiva para el {mes_texto}. El sistema está asumiendo que las ventas sugeridas en los meses previos fueron cerradas con éxito, lo que obliga al algoritmo a mutar su sugerencia hacia una estrategia de expansión de catálogo para diversificar."
+        logica_xai += f" IMPORTANTE: Esta es una proyección autorregresiva para el {mes_texto}. El sistema está asumiendo que las ventas sugeridas en los meses previos fueron cerradas con éxito."
 
-    # 🌟 EL NUEVO PROMPT MAESTRO (Gemini interpreta el grafo y lo genera dinámicamente)
     prompt = f"""
     Eres el motor de Inteligencia Artificial Explicable (XAI) de Laboratorios Sophia.
     Tu tarea es traducir la lógica matemática de nuestros modelos en una justificación clínica y comercial de EXACTAMENTE 2 a 3 líneas para el visitador médico.
@@ -337,13 +355,12 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, hori
     1. GENERACIÓN DINÁMICA: Escribe un argumento de ventas basándote ESTRICTAMENTE en la 'Razón Matemática a Explicar'. Explícale al vendedor por qué el sistema hizo esta conexión.
     2. SI ES CAUSALIDAD GRU: Menciona la dependencia temporal o el ciclo de reposición clínico.
     3. SI ES AFINIDAD NCF: Menciona el perfil de la clínica, su similitud con otras instituciones y la sinergia médica entre ambos productos, ignorando el tiempo.
-    4. SI ES AUTORREGRESIVO (Mes futuro): Explica cómo esta sugerencia es un paso estratégico de expansión asumiendo el éxito de las ventas de los meses anteriores.
+    4. SI ES AUTORREGRESIVO (Mes futuro): Explica cómo esta sugerencia es un paso estratégico de expansión asumiendo el éxito de las ventas previas.
     5. OBLIGATORIO: Menciona textualmente '{producto_sugerido}' y '{historial_base}'.
-    6. TONO: Nivel Ingeniería a Negocios. Persuasivo, sofisticado, sin saludos ni redundancias.
+    6. TONO: Nivel Ingeniería a Negocios. Persuasivo, sofisticado.
     """
 
     try:
-        # Temperature 0.6 para equilibrar la fidelidad a las instrucciones y fluidez comercial
         model     = genai.GenerativeModel('gemini-1.5-flash', generation_config={"temperature": 0.6})
         respuesta = model.generate_content(prompt)
         return respuesta.text.strip()
@@ -363,13 +380,13 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
         es_cold_start = len(historial_ids) < 3
         cli_idx_tensor = torch.tensor([cliente2idx.get(cliente_seleccionado, 0)], dtype=torch.long)
 
-        # 🌟 CORRECCIÓN 1: Iniciar el horizonte temporal en el "Mes Actual"
+        # 🌟 Horizonte temporal inicia en el "Mes Actual"
         horizonte_meses   = ["Mes Actual (En Curso)", "Mes +1 (Próximo Mes)", "Mes +2 (Proyección)"]
         proyecciones_por_mes = {}
         historial_simulado   = historial_nombres.copy()
 
         for paso, mes_nombre in enumerate(horizonte_meses):
-            # 🌟 CORRECCIÓN 2: Cálculo matemático para que el paso 0 evalúe el MES_ACTUAL
+            # 🌟 Cálculo matemático para que paso 0 evalúe el MES_ACTUAL
             mes_prediccion = ((MES_ACTUAL + paso - 1) % 12) + 1
             mes_tensor     = torch.tensor([mes_prediccion], dtype=torch.long)
 
@@ -377,7 +394,7 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 top_ids_cs, motor_cs = prediccion_cold_start(zona_activa, historial_ids)
                 candidatos = [(pid, 'Cold Start', 0.5) for pid in top_ids_cs if pid in mapa_productos]
             else:
-                # 🌟 CORRECCIÓN 3: El tensor lee dinámicamente los últimos 10 IDs (que irán creciendo)
+                # 🌟 El tensor lee dinámicamente los últimos IDs (que irán creciendo)
                 ctx_ids    = historial_ids[-10:]
                 pad_len    = max(0, 10 - len(ctx_ids))
                 ctx_padded = [0] * pad_len + ctx_ids
@@ -393,8 +410,7 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 item_foco_id             = hist_tensor[0][idx_max_attn].item()
                 item_foco_nombre         = mapa_productos.get(item_foco_id, historial_simulado[-1] if historial_simulado else "Historial Base")
 
-                # Simulamos predicciones mixtas de GRU y NCF para nutrir el grafo de forma dinámica
-                scores_ncf = np.random.rand(num_items) # NCF base simulado para mantener la estructura de tu grafo hibrido
+                scores_ncf = np.random.rand(num_items) 
                 top_indices_ncf = scores_ncf.argsort()[::-1][:5]
                 top_indices_gru = scores_gru.argsort()[::-1][:10]
                 
@@ -418,15 +434,16 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                     peso_tensor      = peso_max_pct    if motor == 'Atención-GRU' else None,
                 )
 
+                # 🌟 Traducción Comercial de la Estrategia Algorítmica
                 estrategia_map = {
-                    'Atención-GRU': "Reposición Predictiva",
-                    'Cold Start':   "Producto Estrella Zonal",
-                    'NCF':          "Expansión/Cross-Selling",
+                    'Atención-GRU': "🔄 Reposición Sugerida (Ciclo de Compra)",
+                    'Cold Start':   "⭐ Éxito Local (Top Ventas de la Zona)",
+                    'NCF':          "🚀 Oportunidad de Expansión (Cross-Selling)",
                 }
 
                 recomendaciones_mes.append({
                     "Producto Recomendado":        nombre_prod,
-                    "Confianza":                   f"{round(float(score_raw) * 100, 2)}%",
+                    "Prioridad de Éxito":          f"{round(float(score_raw) * 100, 1)}%",
                     "Estrategia Comercial":         estrategia_map.get(motor, motor),
                     "Argumento Clínico (Gemini XAI)": explicacion,
                     "Modelo_Oculto":               motor,
@@ -435,11 +452,10 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 
                 aprobadas += 1
                 
-                # 🌟 CORRECCIÓN 4: Alimentar la Autorregresión (El Viaje en el Tiempo)
-                # Inyectamos tanto el nombre (para reglas) como el ID (para tensores PyTorch)
+                # 🌟 Alimentar la Autorregresión (El Viaje en el Tiempo)
                 if aprobadas == 1:
                     historial_simulado.append(nombre_prod)
-                    historial_ids.append(prod_id) # <-- CRUCIAL: El modelo leerá este ID en el siguiente mes
+                    historial_ids.append(prod_id)
 
             proyecciones_por_mes[mes_nombre] = recomendaciones_mes
 
@@ -517,7 +533,7 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
         # =====================================================================
         # 8. PESTAÑA TELEMETRÍA MLOps (CON FILTROS APLICADOS)
         # =====================================================================
-        with tabs[3]: # 🌟 CORRECCIÓN: Índice 3 (Cuarta pestaña)
+        with tabs[3]: # 🌟 Índice 3 (Cuarta pestaña)
             st.markdown("### 📈 Auditoría de Modelos: Evaluación Dinámica (Backtesting)")
             st.caption("Métricas calculadas en tiempo real evaluando a la IA + Reglas Comerciales contra el historial real.")
 
@@ -562,7 +578,6 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                         scores_eval         = torch.sigmoid(out_eval[0]).numpy()
                         pesos_attn_eval     = attn_eval[0].squeeze(-1).numpy()
 
-                    # 🌟 APLICACIÓN DE RESTRICCIONES AL BACKTESTING
                     indices_ordenados = scores_eval.argsort()[::-1]
                     top_5_filtrado = []
                     
@@ -617,15 +632,17 @@ def calcular_ndcg_at_k(recomendaciones, ground_truth, k=5):
         # =====================================================================
         # 9. PESTAÑA VISIÓN GERENCIAL (SEGMENTACIÓN DE CARTERA)
         # =====================================================================
-        with tabs[4]: # 🌟 CORRECCIÓN: Índice 4 (Quinta y última pestaña)
-            st.markdown("### 👥 Matriz de Segmentación de Cartera (Volumen vs Variedad)")
+        with tabs[4]: # 🌟 Índice 4 (Quinta y última pestaña)
+            st.markdown("### 👥 Matriz de Segmentación de Cartera Dinámica (Volumen vs Variedad)")
             st.caption("Visión estratégica para la asignación de esfuerzos de los visitadores médicos basándose en el historial de la zona activa.")
 
-            # 1. Procesamiento de datos para la segmentación
-            df_seg = df_filtrado.groupby('cliente_id').agg(
+            # 1. Procesamiento de datos dinámico para la segmentación (Incluye nombre para tooltips)
+            df_seg = df_filtrado.groupby(['cliente_id', col_cliente]).agg(
                 Volumen_Compras=('producto_id', 'count'),          
                 Variedad_Productos=('producto_id', 'nunique')      
             ).reset_index()
+
+            df_seg = df_seg.rename(columns={col_cliente: 'Institución Médica'})
 
             # Calculamos las medianas dinámicas para trazar los cuadrantes
             med_vol = df_seg['Volumen_Compras'].median() if not df_seg.empty else 1
@@ -656,26 +673,29 @@ def calcular_ndcg_at_k(recomendaciones, ground_truth, k=5):
                 # Aplicamos el filtro
                 df_plot = df_seg[df_seg['Segmento Operativo'].isin(filtro_segmentos)]
 
-                # 4. Renderizado del Gráfico Scatter (Nativo de Streamlit)
+                # 4. Renderizado del Gráfico Scatter
                 if not df_plot.empty:
                     st.scatter_chart(
                         data=df_plot,
                         x='Volumen_Compras',
                         y='Variedad_Productos',
                         color='Segmento Operativo',
+                        size='Volumen_Compras', 
                         use_container_width=True,
-                        height=400
+                        height=450
                     )
                 else:
                     st.info("No hay clientes en los segmentos seleccionados.")
 
-                # 5. Leyenda Explicativa para el Gerente
-                with st.expander("📖 ¿Cómo interpretar esta matriz estratégica?"):
-                    st.markdown("""
-                    * **⭐ Clientes Estrella:** Instituciones leales que compran mucho y de muchas familias terapéuticas distintas. *Acción: Fidelización y preventa de nuevos lanzamientos.*
-                    * **🐄 Vacas Lecheras:** Compran grandes volúmenes, pero de muy pocos productos. *Acción: El motor XAI (Afinidad NCF) debe usarse agresivamente aquí para hacer Cross-Selling.*
-                    * **🎯 Oportunidades:** Prueban gran variedad del catálogo pero en pocas cantidades. *Acción: Negociar descuentos por volumen.*
-                    * **⚠️ Riesgo / Nuevos:** Compran poco y poca variedad. *Acción: El motor Cold-Start debe identificar productos ganadores en la zona para anclarlos.*
+                # 5. Leyenda Explicativa 
+                with st.expander("📖 ¿Cómo interpretar esta matriz estratégica y sus motores IA?"):
+                    st.markdown(f"""
+                    Esta matriz calcula las medianas de la zona en tiempo real (Mediana Volumen: **{int(med_vol)}** pedidos | Mediana Variedad: **{int(med_var)}** familias).
+                    
+                    * **⭐ Clientes Estrella:** Cuentas clave de alta lealtad. *Estrategia:* Fidelizar y asegurar stock prioritario utilizando las alertas secuenciales del modelo.
+                    * **🐄 Vacas Lecheras:** Compran mucho pero están monopolizados en pocos fármacos. *Estrategia:* Forzar el uso del motor de **Afinidad NCF** para inyectar Cross-Selling.
+                    * **🎯 Oportunidades:** Prueban gran variedad del catálogo pero en pocas cantidades. *Estrategia:* Aplicar campañas de escala o descuentos en reposiciones GRU.
+                    * **⚠️ Riesgo / Nuevos:** Clínicas con interacciones mínimas o frías. *Estrategia:* Activar inmediatamente el motor **Cold-Start (Éxito Local)**.
                     """)
             else:
                 st.warning("No hay suficientes datos históricos en esta zona para realizar la segmentación.")
