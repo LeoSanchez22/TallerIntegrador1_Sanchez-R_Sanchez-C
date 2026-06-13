@@ -13,8 +13,20 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+import time
 
 warnings.filterwarnings('ignore')
+
+# Motor de similitud por contenido (productos nuevos)
+try:
+    from content_recommender import (
+        MotorContenido, inyectar_candidatos_nuevos,
+        registrar_producto_nuevo, SUBFAMILIAS, FORMATOS,
+        METADATA_JSON_PATH
+    )
+    CONTENT_RECOMMENDER_DISPONIBLE = True
+except ImportError:
+    CONTENT_RECOMMENDER_DISPONIBLE = False
 
 # =====================================================================
 # 0. ARQUITECTURA DE DEEP LEARNING (Debe ser idéntica a train.py)
@@ -103,16 +115,39 @@ col_cliente = next((c for c in ['cliente', 'nombre_cliente', 'Cliente'] if c in 
 num_items    = int(compras_ctx['producto_id'].max()) + 2
 mapa_productos = compras_ctx.drop_duplicates('producto_id').set_index('producto_id')['producto'].to_dict()
 
+# =====================================================================
+# FIX: Detección de mes con fallback a mes_num si no hay columna fecha
+# =====================================================================
 mes_col_existe = False
 for col_fecha in ['fecha', 'date', 'fecha_pedido']:
     if col_fecha in compras_ctx.columns:
         compras_ctx['mes'] = pd.to_datetime(compras_ctx[col_fecha], errors='coerce').dt.month.fillna(1).astype(int)
         mes_col_existe = True
         break
+
+# Si no hay columna de fecha pero sí hay mes_num (filas guardadas desde el formulario), usarla
 if not mes_col_existe:
-    compras_ctx['mes'] = 1
+    if 'mes_num' in compras_ctx.columns:
+        compras_ctx['mes'] = compras_ctx['mes_num'].fillna(1).astype(int)
+    else:
+        compras_ctx['mes'] = 1
 
 MES_ACTUAL = int(pd.Timestamp.now().month)
+
+# ── MOTOR DE CONTENIDO (productos nuevos / cold start por metadatos) ──
+motor_contenido = None
+if CONTENT_RECOMMENDER_DISPONIBLE:
+    try:
+        motor_contenido = MotorContenido(compras_ctx, DIRECTORIO_RAIZ / METADATA_JSON_PATH.name)
+        # 🌟 SOLUCIÓN 1: Inyectar productos nuevos al mapa para que aparezcan en los menús HITL
+        if motor_contenido.hay_productos_nuevos():
+            max_id_actual = max(mapa_productos.keys()) if mapa_productos else 0
+            for i, prod_nuevo in enumerate(motor_contenido.productos_nuevos()):
+                if prod_nuevo not in mapa_productos.values():
+                    nuevo_id = max_id_actual + 1 + i
+                    mapa_productos[nuevo_id] = prod_nuevo
+    except Exception as _e:
+        st.sidebar.warning(f"Motor de contenido no disponible: {_e}")
 
 # =====================================================================
 # 2. CARGA DEL MODELO 
@@ -155,6 +190,10 @@ def cargar_modelo():
 
 modelo_gru, cliente2idx, num_clientes, estado_modelo = cargar_modelo()
 st.sidebar.info(estado_modelo)
+st.sidebar.caption(f"📅 Mes actual detectado: **{pd.Timestamp.now().strftime('%B %Y')}** (mes {MES_ACTUAL})")
+if motor_contenido and motor_contenido.hay_productos_nuevos():
+    nuevos_str = ", ".join(motor_contenido.productos_nuevos())
+    st.sidebar.success(f"🆕 Productos nuevos detectados: **{nuevos_str}** — Motor de Contenido activo")
 
 # =====================================================================
 # 3. INTERFAZ Y REGLAS DE NEGOCIO VISIBLES
@@ -178,6 +217,80 @@ with col_sel2:
         options=list(opciones_clientes.keys()),
         format_func=lambda x: opciones_clientes[x]
     )
+
+# =====================================================================
+# REGISTRO DE PRODUCTO NUEVO (Cold Start por Contenido)
+# =====================================================================
+with st.expander("🆕 Registrar Nuevo Producto para Recomendación (Lanzamiento)"):
+    st.markdown("""
+    **¿Laboratorios Sophia lanzó un nuevo fármaco?** Regístralo aquí con 5 datos clínicos
+    básicos. El sistema calculará automáticamente su similitud con el catálogo existente
+    y comenzará a recomendarlo a las clínicas con perfil terapéutico afín, **sin necesidad
+    de historial de ventas previo**.
+    """)
+
+    if not CONTENT_RECOMMENDER_DISPONIBLE:
+        st.warning("⚠️ Módulo content_recommender.py no encontrado.")
+    else:
+        with st.form("form_nuevo_producto"):
+            fp1, fp2 = st.columns(2)
+            with fp1:
+                np_nombre     = st.text_input("Nombre comercial del producto *",
+                                              placeholder="Ej: SPLASH TEARS")
+                np_subfamilia = st.selectbox("Sub-familia terapéutica *", SUBFAMILIAS)
+                np_formato    = st.selectbox("Formato / Presentación *", FORMATOS)
+            with fp2:
+                np_indicacion  = st.text_input("Indicación principal *",
+                                               placeholder="Ej: Alivio del ojo seco")
+                np_composicion = st.text_area("Principio(s) activo(s) *",
+                                              placeholder="Ej: Condroitín sulfato de sodio, Hipromelosa",
+                                              height=100)
+
+            submitted_nuevo = st.form_submit_button("💊 Registrar y Activar Recomendaciones")
+
+            if submitted_nuevo:
+                if not np_nombre.strip():
+                    st.error("El nombre comercial es obligatorio.")
+                elif not np_indicacion.strip() or not np_composicion.strip():
+                    st.error("La indicación y la composición son obligatorias.")
+                else:
+                    try:
+                        ruta_json = DIRECTORIO_RAIZ / METADATA_JSON_PATH.name
+                        meta_guardada = registrar_producto_nuevo(
+                            nombre      = np_nombre.strip(),
+                            sub_familia = np_subfamilia,
+                            indicacion  = np_indicacion.strip(),
+                            composicion = np_composicion.strip(),
+                            formato     = np_formato,
+                            ruta        = ruta_json,
+                        )
+                        # Reiniciar el motor con el nuevo producto incluido
+                        motor_contenido = MotorContenido(compras_ctx, ruta_json)
+                        st.success(
+                            f"✅ **{meta_guardada['producto']}** registrado correctamente. "
+                            f"Sub-familia: *{meta_guardada['sub_familia']}* | "
+                            f"Vía: *{meta_guardada['via_administracion']}*. "
+                            f"El motor de recomendación ya lo considera activo."
+                        )
+                        # Mostrar con quién tiene mayor afinidad
+                        if motor_contenido:
+                            productos_existentes_nombres = list(
+                                compras_ctx.drop_duplicates('producto')['producto']
+                            )
+                            scores_preview = []
+                            for prod_ex in productos_existentes_nombres:
+                                s = motor_contenido.score([prod_ex], meta_guardada['producto'])
+                                if s > 0:
+                                    scores_preview.append((prod_ex, s))
+                            scores_preview.sort(key=lambda x: x[1], reverse=True)
+                            tabla_af = motor_contenido.tabla_similitud_producto_nuevo(
+                                    meta_guardada['producto']
+                                )
+                            if not tabla_af.empty:
+                                st.markdown("**📊 Afinidad terapéutica calculada (TF-IDF) con el catálogo existente:**")
+                                st.dataframe(tabla_af, use_container_width=True, hide_index=True)
+                    except Exception as e:
+                        st.error(f"Error al registrar: {e}")
 
 with st.expander("🛡️ Auditoría de Reglas de Negocio y Filtros (Restricciones Activas)"):
     st.markdown("""
@@ -211,6 +324,9 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
     **Transforma proyecciones en hechos.** Al registrar el cierre de una venta aquí, el dato viaja a Supabase (o archivo local). 
     La red neuronal **Attention-GRU** absorberá instantáneamente este producto en su memoria secuencial, recalibrando los pesos de atención.
     """)
+
+    # Mostrar el mes actual para que el usuario sepa qué mes se registrará
+    st.info(f"📅 Esta venta se registrará con la fecha de hoy: **{pd.Timestamp.now().strftime('%d/%m/%Y')}** (Mes {MES_ACTUAL})")
     
     with st.form("form_registro_venta"):
         c1, c2 = st.columns(2)
@@ -224,6 +340,15 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
         if submit_venta:
             prod_id_vendido = list(mapa_productos.keys())[list(mapa_productos.values()).index(producto_a_vender)]
             cliente_nombre_str = opciones_clientes[cliente_seleccionado].split(" - ")[-1] if " - " in opciones_clientes[cliente_seleccionado] else opciones_clientes[cliente_seleccionado]
+            fecha_hoy = pd.Timestamp.now().strftime("%Y-%m-%d")
+            
+            nombres_meses = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO', 
+                             7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
+            abbr_meses = {1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR', 5: 'MAY', 6: 'JUN', 
+                          7: 'JUL', 8: 'AGO', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'}
+            
+            mes_texto_str = nombres_meses.get(MES_ACTUAL, "DESCONOCIDO")
+            mes_abbr_str = abbr_meses.get(MES_ACTUAL, "UNK")
             
             try:
                 load_dotenv() 
@@ -232,24 +357,30 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
                 if db_uri and "tu_contraseña" not in db_uri:
                     # MODO CLOUD
                     engine_insert = create_engine(db_uri)
+                    # En Supabase mantenemos la query original asumiendo que es tu estructura actual
                     query_insert = text("""
-                        INSERT INTO ventas_detalle (vendedor, cliente, producto, cliente_id, producto_id, cantidad, mes_num) 
-                        VALUES (:zon, :cli, :prod, :cid, :pid, :cant, :mes)
+                        INSERT INTO ventas_detalle (vendedor, cliente, producto, cliente_id, producto_id, cantidad, fecha, mes_num) 
+                        VALUES (:zon, :cli, :prod, :cid, :pid, :cant, :fecha, :mes)
                     """)
                     with engine_insert.begin() as conn:
                         conn.execute(query_insert, {
                             "zon": zona_activa, "cli": cliente_nombre_str, "prod": producto_a_vender,
-                            "cid": cliente_seleccionado, "pid": prod_id_vendido, "cant": cantidad_vendida, "mes": MES_ACTUAL
+                            "cid": cliente_seleccionado, "pid": prod_id_vendido, "cant": cantidad_vendida,
+                            "fecha": fecha_hoy, "mes": MES_ACTUAL
                         })
                     modo_guardado = "Supabase (Nube)"
                 else:
-                    # MODO LOCAL CSV
+                    # MODO LOCAL CSV — Agregamos 'mes_nombre' y 'mes_abbr' para que el Dashboard lo lea bonito
                     csv_path = PATHS['intermediate'] / 'compras_ctx.csv'
                     if csv_path.exists():
                         df_local = pd.read_csv(csv_path)
                         nueva_fila = pd.DataFrame([{
                             "vendedor": zona_activa, "cliente": cliente_nombre_str, "producto": producto_a_vender,
-                            "cliente_id": cliente_seleccionado, "producto_id": prod_id_vendido, "cantidad": cantidad_vendida, "mes_num": MES_ACTUAL
+                            "cliente_id": cliente_seleccionado, "producto_id": prod_id_vendido, "cantidad": cantidad_vendida,
+                            "fecha": fecha_hoy,
+                            "mes_num": MES_ACTUAL,
+                            "mes_nombre": mes_texto_str, # ← Evita que salga None
+                            "mes_abbr": mes_abbr_str     # ← Mantiene el estándar del CSV
                         }])
                         df_actualizado = pd.concat([df_local, nueva_fila], ignore_index=True)
                         df_actualizado.to_csv(csv_path, index=False)
@@ -258,13 +389,22 @@ with st.expander("✍️ Registrar Nueva Venta Efectiva (Retroalimentar IA)"):
                         st.error("⚠️ No se encontró la base de datos en la nube ni el archivo CSV local.")
                         st.stop()
                 
-                cargar_datos.clear() 
-                st.success(f"✅ ¡Venta confirmada en {modo_guardado}! Se inyectaron {cantidad_vendida} unidades de {producto_a_vender} al tensor de memoria. Por favor, haz clic nuevamente en 'Generar Diagnóstico' para recalibrar.")
+                # 🌟 EL TRUCO DE LA AUTO-RECARGA
+                cargar_datos.clear() # 1. Borramos la memoria vieja
+                
+                # 2. Mostramos el mensaje temporalmente
+                st.success(f"✅ ¡Venta confirmada en {modo_guardado}! Actualizando la memoria de la IA...")
+                
+                # 3. Pausamos 1.5 segundos para que el usuario lea el mensaje
+                time.sleep(1.5)
+                
+                # 4. Forzamos a Streamlit a reiniciarse desde la línea 1
+                st.rerun()
+                
             except Exception as e:
                 st.error(f"⚠️ Error al registrar la venta: {e}")
-
 # =====================================================================
-# 3.8 TRAZABILIDAD DE DATOS (AUDITORÍA PARA EL ASESOR)
+# 3.8 TRAZABILIDAD DE DATOS 
 # =====================================================================
 st.markdown("---")
 st.markdown("#### 🔍 Trazabilidad del Historial (Data Cruda para la IA)")
@@ -335,6 +475,8 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, hori
         logica_xai = f"El modelo detectó una 'Causalidad GRU' secuencial. La capa de atención asignó {peso_tensor}% de relevancia al consumo histórico de '{historial_base}'. Esto indica un ciclo de reposición inminente en el tiempo."
     elif motor_origen == 'Cold Start':
         logica_xai = f"Activación de 'Cold Start'. Al carecer de historial suficiente, '{producto_sugerido}' se recomienda por tener alta adopción en otras clínicas de la zona."
+    elif motor_origen == 'Contenido (Nuevo Lanzamiento)':
+        logica_xai = f"El Motor de Similitud por Contenido calculó afinidad terapéutica entre '{producto_sugerido}' y '{historial_base}'. Comparten familia terapéutica y vía de administración. Este es un producto de nuevo lanzamiento sin historial de ventas: la recomendación se basa en la compatibilidad clínica de sus metadatos, no en transacciones previas."
     else:
         logica_xai = f"El modelo detectó una 'Afinidad NCF'. Evaluando el Espacio Latente, encontró que clínicas con un perfil estructural idéntico a esta, que ya consumen '{historial_base}', tienen una probabilidad muy alta de adoptar '{producto_sugerido}'."
 
@@ -370,6 +512,64 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, hori
 # =====================================================================
 # 6. EJECUCIÓN DEL PROCESO PREDICTIVO
 # =====================================================================
+# ── SIMULACIÓN DE CLIENTE NUEVO (sin historial) ──────────────────────
+with st.expander("👤 Simular recomendación para Cliente Nuevo (sin historial)"):
+    st.markdown("""
+    Útil para evaluar qué recomienda el sistema cuando un visitador médico visita
+    una clínica que **nunca ha comprado** a Laboratorios Sophia.
+    El motor **Cold Start** y el **Motor de Contenido** actúan en conjunto.
+    """)
+    col_sim1, col_sim2 = st.columns(2)
+    with col_sim1:
+        zona_simulada = st.selectbox(
+            "Zona del cliente nuevo:", zonas_disponibles, key="zona_sim"
+        )
+    with col_sim2:
+        nombre_nuevo_cliente = st.text_input(
+            "Nombre referencial de la clínica:", "Clínica Nueva (Sin Historial)", key="nombre_sim"
+        )
+
+    if st.button("🔍 Ver qué recomendaría el sistema", key="btn_sim"):
+        df_zona_sim = compras_ctx[compras_ctx[col_zona] == zona_simulada] if col_zona else compras_ctx
+
+        # Cold Start: top productos de la zona
+        top_zona_sim = (
+            df_zona_sim.groupby('producto_id')['producto_id'].count()
+            .sort_values(ascending=False).head(5).index.tolist()
+        )
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            st.markdown(f"#### ⭐ Motor Cold Start — Top productos en {zona_simulada}")
+            filas_cs = []
+            for pid in top_zona_sim:
+                nombre_p = mapa_productos.get(pid, str(pid))
+                frec = df_zona_sim[df_zona_sim['producto_id'] == pid].shape[0]
+                filas_cs.append({"Producto": nombre_p, "Pedidos en zona": frec,
+                                  "Estrategia": "⭐ Popularidad Zonal"})
+            st.dataframe(pd.DataFrame(filas_cs), use_container_width=True, hide_index=True)
+
+        with col_s2:
+            if motor_contenido and motor_contenido.hay_productos_nuevos():
+                st.markdown("#### 🆕 Motor de Contenido — Nuevos lanzamientos disponibles")
+                # Para cliente sin historial usamos los top productos de la zona como proxy
+                historial_proxy = [mapa_productos[pid] for pid in top_zona_sim if pid in mapa_productos]
+                recs_nuevos_sim = motor_contenido.recomendar_nuevos(historial_proxy)
+                if recs_nuevos_sim:
+                    filas_n = []
+                    for r in recs_nuevos_sim:
+                        filas_n.append({
+                            "Nuevo Producto": r['producto'],
+                            "Afinidad": f"{r['score']*100:.1f}%",
+                            "Similar a": r['similar_a'],
+                            "Razón": r['razon_xai'],
+                        })
+                    st.dataframe(pd.DataFrame(filas_n), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No hay productos nuevos con afinidad suficiente para esta zona.")
+            else:
+                st.info("No hay productos nuevos registrados aún. Usa el formulario '🆕 Registrar Nuevo Producto'.")
+        st.caption(f"Simulación para: **{nombre_nuevo_cliente}** | Zona: **{zona_simulada}** | Sin historial previo")
+
 if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", type="primary"):
 
     with st.spinner('Ejecutando PyTorch, extrayendo tensores e invocando Gemini (XAI)...'):
@@ -380,13 +580,11 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
         es_cold_start = len(historial_ids) < 3
         cli_idx_tensor = torch.tensor([cliente2idx.get(cliente_seleccionado, 0)], dtype=torch.long)
 
-        # 🌟 Horizonte temporal inicia en el "Mes Actual"
         horizonte_meses   = ["Mes Actual (En Curso)", "Mes +1 (Próximo Mes)", "Mes +2 (Proyección)"]
         proyecciones_por_mes = {}
         historial_simulado   = historial_nombres.copy()
 
         for paso, mes_nombre in enumerate(horizonte_meses):
-            # 🌟 Cálculo matemático para que paso 0 evalúe el MES_ACTUAL
             mes_prediccion = ((MES_ACTUAL + paso - 1) % 12) + 1
             mes_tensor     = torch.tensor([mes_prediccion], dtype=torch.long)
 
@@ -394,10 +592,14 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 top_ids_cs, motor_cs = prediccion_cold_start(zona_activa, historial_ids)
                 candidatos = [(pid, 'Cold Start', 0.5) for pid in top_ids_cs if pid in mapa_productos]
             else:
-                # 🌟 El tensor lee dinámicamente los últimos IDs (que irán creciendo)
                 ctx_ids    = historial_ids[-10:]
-                pad_len    = max(0, 10 - len(ctx_ids))
-                ctx_padded = [0] * pad_len + ctx_ids
+                
+                # 🌟 SOLUCIÓN 2: Máscara Out-Of-Vocabulary (OOV) para proteger la red neuronal
+                max_emb_id = modelo_gru.item_embedding.num_embeddings - 1
+                ctx_ids_seguros = [pid if pid <= max_emb_id else 0 for pid in ctx_ids]
+                
+                pad_len    = max(0, 10 - len(ctx_ids_seguros))
+                ctx_padded = [0] * pad_len + ctx_ids_seguros
                 hist_tensor = torch.tensor([ctx_padded], dtype=torch.long)
 
                 with torch.no_grad():
@@ -417,6 +619,18 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 candidatos = [(int(i), 'Atención-GRU', scores_gru[i]) for i in top_indices_gru if i > 0 and i in mapa_productos] + \
                              [(int(i + 1), 'NCF', scores_ncf[i]) for i in top_indices_ncf if (i + 1) in mapa_productos]
 
+            # ── INYECCIÓN DE PRODUCTOS NUEVOS (motor de contenido) ──
+            if motor_contenido and motor_contenido.hay_productos_nuevos() and not es_cold_start:
+                mapa_inv = {v.upper(): k for k, v in mapa_productos.items()}
+                candidatos_nuevos = inyectar_candidatos_nuevos(
+                    motor_contenido, historial_simulado, mapa_inv
+                )
+                for prod_id_n, motor_n, score_n, meta_n in candidatos_nuevos:
+                    candidatos.append((prod_id_n, motor_n, score_n))
+                    if '_meta_nuevos' not in st.session_state:
+                        st.session_state['_meta_nuevos'] = {}
+                    st.session_state['_meta_nuevos'][str(prod_id_n)] = meta_n
+
             candidatos.sort(key=lambda x: x[2], reverse=True)
 
             recomendaciones_mes = []
@@ -424,7 +638,11 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
 
             for prod_id, motor, score_raw in candidatos:
                 if aprobadas >= 3: break
-                nombre_prod = mapa_productos[prod_id]
+                # IDs virtuales para productos nuevos (no están en mapa histórico aún)
+                if isinstance(prod_id, str) and prod_id.startswith("NUEVO_"):
+                    nombre_prod = prod_id.replace("NUEVO_", "")
+                else:
+                    nombre_prod = mapa_productos.get(prod_id, str(prod_id))
                 es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa)
                 if not es_seguro: continue
 
@@ -434,11 +652,11 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                     peso_tensor      = peso_max_pct    if motor == 'Atención-GRU' else None,
                 )
 
-                # 🌟 Traducción Comercial de la Estrategia Algorítmica
                 estrategia_map = {
                     'Atención-GRU': "🔄 Reposición Sugerida (Ciclo de Compra)",
                     'Cold Start':   "⭐ Éxito Local (Top Ventas de la Zona)",
                     'NCF':          "🚀 Oportunidad de Expansión (Cross-Selling)",
+                    'Contenido (Nuevo Lanzamiento)': "🆕 Nuevo Lanzamiento (Afinidad Terapéutica)",
                 }
 
                 recomendaciones_mes.append({
@@ -452,7 +670,6 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 
                 aprobadas += 1
                 
-                # 🌟 Alimentar la Autorregresión (El Viaje en el Tiempo)
                 if aprobadas == 1:
                     historial_simulado.append(nombre_prod)
                     historial_ids.append(prod_id)
@@ -531,9 +748,9 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                     st.pyplot(fig)
 
         # =====================================================================
-        # 8. PESTAÑA TELEMETRÍA MLOps (CON FILTROS APLICADOS)
+        # 8. PESTAÑA TELEMETRÍA MLOps
         # =====================================================================
-        with tabs[3]: # 🌟 Índice 3 (Cuarta pestaña)
+        with tabs[3]:
             st.markdown("### 📈 Auditoría de Modelos: Evaluación Dinámica (Backtesting)")
             st.caption("Métricas calculadas en tiempo real evaluando a la IA + Reglas Comerciales contra el historial real.")
 
@@ -559,15 +776,19 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                         cold_start_count += 1
                         continue
 
-                    contexto_ids = hist_ids[:-1]
+                    contexto_ids    = hist_ids[:-1]
                     ground_truth_id = hist_ids[-1]
-                    
                     contexto_nombres = [mapa_productos[pid] for pid in contexto_ids if pid in mapa_productos]
                     mes_cliente = compras_ctx[compras_ctx['cliente_id'] == cid]['mes'].iloc[-1] if 'mes' in compras_ctx.columns else 1
 
                     ctx_ids = contexto_ids[-10:]
-                    pad_len = max(0, 10 - len(ctx_ids))
-                    ctx_padded = [0] * pad_len + ctx_ids
+                    
+                    # 🌟 SOLUCIÓN 3: Protección OOV también en el backtesting de MLOps
+                    max_emb_id = modelo_gru.item_embedding.num_embeddings - 1
+                    ctx_ids_seguros = [pid if pid <= max_emb_id else 0 for pid in ctx_ids]
+                    
+                    pad_len = max(0, 10 - len(ctx_ids_seguros))
+                    ctx_padded = [0] * pad_len + ctx_ids_seguros
 
                     tensor_ctx = torch.tensor([ctx_padded], dtype=torch.long)
                     cli_t      = torch.tensor([cliente2idx.get(cid, 0)], dtype=torch.long)
@@ -584,15 +805,12 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                     for idx_prod in indices_ordenados:
                         if idx_prod == 0: continue
                         if len(top_5_filtrado) >= 5: break
-                        
                         nombre_prod_eval = mapa_productos.get(idx_prod, "")
                         es_seguro, _ = pasa_filtros_seguridad(nombre_prod_eval, contexto_nombres, zona_activa)
-                        
                         if es_seguro:
                             top_5_filtrado.append(idx_prod)
 
                     productos_sugeridos_unicos.update(top_5_filtrado)
-
                     hr_total      += calcular_hit_rate_at_k(top_5_filtrado, ground_truth_id, k=5)
                     ndcg_total    += calcular_ndcg_at_k(top_5_filtrado, ground_truth_id, k=5)
                     atencion_media += np.max(pesos_attn_eval)
@@ -607,10 +825,10 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                     hr_final = ndcg_final = atencion_final = cobertura_catalogo = 0
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Hit Rate @ 5",               f"{hr_final:.1f}%",            delta="IA + Reglas de Negocio")
-            m2.metric("NDCG @ 5 (Ranking)",          f"{ndcg_final:.3f}",           delta="Cálculo posicional")
-            m3.metric("Pico de Atención (XAI)",       f"{atencion_final:.1f}%",      delta="Concentración XAI")
-            m4.metric("Cobertura de Catálogo",        f"{cobertura_catalogo:.1f}%",  delta="Diversidad IA")
+            m1.metric("Hit Rate @ 5",         f"{hr_final:.1f}%",       delta="IA + Reglas de Negocio")
+            m2.metric("NDCG @ 5 (Ranking)",    f"{ndcg_final:.3f}",      delta="Cálculo posicional")
+            m3.metric("Pico de Atención (XAI)", f"{atencion_final:.1f}%", delta="Concentración XAI")
+            m4.metric("Cobertura de Catálogo",  f"{cobertura_catalogo:.1f}%", delta="Diversidad IA")
 
             if cold_start_count > 0:
                 st.info(f"ℹ️ {cold_start_count} clientes en la muestra activaron el motor Cold Start (historial < 3 compras).")
@@ -618,11 +836,9 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
             st.markdown("#### Funciones Matemáticas de Evaluación:")
             st.code("""
 def calcular_hit_rate_at_k(recomendaciones, ground_truth, k=5):
-    '''¿El producto real facturado apareció en el Top-K predicho?'''
     return 1 if ground_truth in recomendaciones[:k] else 0
 
 def calcular_ndcg_at_k(recomendaciones, ground_truth, k=5):
-    '''Penaliza logarítmicamente los aciertos en posiciones bajas.'''
     if ground_truth in recomendaciones[:k]:
         index = recomendaciones.index(ground_truth)
         return 1 / np.log2(index + 2)
@@ -630,25 +846,21 @@ def calcular_ndcg_at_k(recomendaciones, ground_truth, k=5):
             """, language="python")
 
         # =====================================================================
-        # 9. PESTAÑA VISIÓN GERENCIAL (SEGMENTACIÓN DE CARTERA)
+        # 9. PESTAÑA VISIÓN GERENCIAL
         # =====================================================================
-        with tabs[4]: # 🌟 Índice 4 (Quinta y última pestaña)
+        with tabs[4]:
             st.markdown("### 👥 Matriz de Segmentación de Cartera Dinámica (Volumen vs Variedad)")
             st.caption("Visión estratégica para la asignación de esfuerzos de los visitadores médicos basándose en el historial de la zona activa.")
 
-            # 1. Procesamiento de datos dinámico para la segmentación (Incluye nombre para tooltips)
             df_seg = df_filtrado.groupby(['cliente_id', col_cliente]).agg(
-                Volumen_Compras=('producto_id', 'count'),          
-                Variedad_Productos=('producto_id', 'nunique')      
+                Volumen_Compras=('producto_id', 'count'),
+                Variedad_Productos=('producto_id', 'nunique')
             ).reset_index()
-
             df_seg = df_seg.rename(columns={col_cliente: 'Institución Médica'})
 
-            # Calculamos las medianas dinámicas para trazar los cuadrantes
             med_vol = df_seg['Volumen_Compras'].median() if not df_seg.empty else 1
             med_var = df_seg['Variedad_Productos'].median() if not df_seg.empty else 1
 
-            # 2. Función de Clasificación Estratégica
             def clasificar_cartera(row):
                 if row['Volumen_Compras'] >= med_vol and row['Variedad_Productos'] >= med_var:
                     return '⭐ Clientes Estrella (Alto Vol, Alta Variedad)'
@@ -662,7 +874,6 @@ def calcular_ndcg_at_k(recomendaciones, ground_truth, k=5):
             if not df_seg.empty:
                 df_seg['Segmento Operativo'] = df_seg.apply(clasificar_cartera, axis=1)
 
-                # 3. Interfaz de Usuario: Filtro por Segmento Operativo
                 segmentos_disponibles = sorted(df_seg['Segmento Operativo'].unique().tolist())
                 filtro_segmentos = st.multiselect(
                     "Filtro por Segmento Operativo:", 
@@ -670,32 +881,29 @@ def calcular_ndcg_at_k(recomendaciones, ground_truth, k=5):
                     default=segmentos_disponibles
                 )
 
-                # Aplicamos el filtro
                 df_plot = df_seg[df_seg['Segmento Operativo'].isin(filtro_segmentos)]
 
-                # 4. Renderizado del Gráfico Scatter
                 if not df_plot.empty:
                     st.scatter_chart(
                         data=df_plot,
                         x='Volumen_Compras',
                         y='Variedad_Productos',
                         color='Segmento Operativo',
-                        size='Volumen_Compras', 
+                        size='Volumen_Compras',
                         use_container_width=True,
                         height=450
                     )
                 else:
                     st.info("No hay clientes en los segmentos seleccionados.")
 
-                # 5. Leyenda Explicativa 
                 with st.expander("📖 ¿Cómo interpretar esta matriz estratégica y sus motores IA?"):
                     st.markdown(f"""
                     Esta matriz calcula las medianas de la zona en tiempo real (Mediana Volumen: **{int(med_vol)}** pedidos | Mediana Variedad: **{int(med_var)}** familias).
                     
-                    * **⭐ Clientes Estrella:** Cuentas clave de alta lealtad. *Estrategia:* Fidelizar y asegurar stock prioritario utilizando las alertas secuenciales del modelo.
-                    * **🐄 Vacas Lecheras:** Compran mucho pero están monopolizados en pocos fármacos. *Estrategia:* Forzar el uso del motor de **Afinidad NCF** para inyectar Cross-Selling.
-                    * **🎯 Oportunidades:** Prueban gran variedad del catálogo pero en pocas cantidades. *Estrategia:* Aplicar campañas de escala o descuentos en reposiciones GRU.
-                    * **⚠️ Riesgo / Nuevos:** Clínicas con interacciones mínimas o frías. *Estrategia:* Activar inmediatamente el motor **Cold-Start (Éxito Local)**.
+                    * **⭐ Clientes Estrella:** Fidelizar y asegurar stock prioritario.
+                    * **🐄 Vacas Lecheras:** Usar motor **NCF** para inyectar Cross-Selling.
+                    * **🎯 Oportunidades:** Campañas de escala en reposiciones GRU.
+                    * **⚠️ Riesgo / Nuevos:** Activar motor **Cold-Start (Éxito Local)**.
                     """)
             else:
                 st.warning("No hay suficientes datos históricos en esta zona para realizar la segmentación.")

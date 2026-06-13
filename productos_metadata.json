@@ -1,0 +1,22 @@
+{
+  "SPLASH TEARS": {
+    "producto": "SPLASH TEARS",
+    "familia_terapeutica": "Oftalmología",
+    "sub_familia": "Lubricante ocular",
+    "via_administracion": "Tópica ocular",
+    "formato": "Gotas",
+    "composicion": "Condroitin Sulfato de Sodio, Hipromelosa",
+    "indicacion": "Alivio del ojo seco",
+    "es_nuevo": true
+  },
+  "SPLASH TEARS PF": {
+    "producto": "SPLASH TEARS PF",
+    "familia_terapeutica": "Oftalmología",
+    "sub_familia": "Corticoide ocular",
+    "via_administracion": "Tópica ocular",
+    "formato": "Gotas",
+    "composicion": "Condroitin Sulfato de Sodio, Hipromelosa",
+    "indicacion": "Alivio del ojo seco",
+    "es_nuevo": true
+  }
+}
