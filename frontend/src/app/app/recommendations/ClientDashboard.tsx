@@ -556,12 +556,16 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                         Grafo Multipartito Explicable (XAI)
                       </h4>
                     </div>
-                    <span className={`text-xs font-black tracking-widest uppercase bg-neutral-100 dark:bg-neutral-800 text-emerald-650 dark:text-emerald-400 border border-neutral-200 dark:border-emerald-500/30 px-4 py-1.5 rounded-full shadow-lg transition-all duration-300 ${hoveredEnlace ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
-                      {hoveredEnlace?.label || 'Sin Selección'}
-                    </span>
                   </div>
 
                   <div className="relative rounded-3xl bg-white dark:bg-neutral-950/80 border border-neutral-200 dark:border-neutral-800/80 overflow-hidden shadow-2xl p-4 min-h-[500px] flex items-center justify-center transition-colors">
+                    {/* Floating XAI Label (Absolutely positioned to guarantee ZERO layout shifts) */}
+                    <div className="absolute top-6 right-6 z-20 pointer-events-none">
+                      <span className={`text-xs font-black tracking-widest uppercase bg-neutral-100/90 dark:bg-neutral-900/90 backdrop-blur-md text-emerald-650 dark:text-emerald-400 border border-neutral-200 dark:border-emerald-500/20 px-4 py-2 rounded-full shadow-2xl transition-all duration-300 ${hoveredEnlace ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-2 scale-95'}`}>
+                        {hoveredEnlace ? hoveredEnlace.label : ''}
+                      </span>
+                    </div>
+
                     <svg viewBox="0 0 780 480" className="w-full h-full max-h-[500px]">
                       <defs>
                         <marker
