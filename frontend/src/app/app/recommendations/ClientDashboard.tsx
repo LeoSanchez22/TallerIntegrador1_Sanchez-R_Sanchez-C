@@ -556,11 +556,9 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                         Grafo Multipartito Explicable (XAI)
                       </h4>
                     </div>
-                    {hoveredEnlace && (
-                      <span className="text-xs font-black tracking-widest uppercase bg-neutral-100 dark:bg-neutral-800 text-emerald-600 dark:text-emerald-400 border border-neutral-200 dark:border-emerald-500/30 px-4 py-1.5 rounded-full animate-fadeIn shadow-lg">
-                        {hoveredEnlace.label}
-                      </span>
-                    )}
+                    <span className={`text-xs font-black tracking-widest uppercase bg-neutral-100 dark:bg-neutral-800 text-emerald-650 dark:text-emerald-400 border border-neutral-200 dark:border-emerald-500/30 px-4 py-1.5 rounded-full shadow-lg transition-all duration-300 ${hoveredEnlace ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                      {hoveredEnlace?.label || 'Sin Selección'}
+                    </span>
                   </div>
 
                   <div className="relative rounded-3xl bg-white dark:bg-neutral-950/80 border border-neutral-200 dark:border-neutral-800/80 overflow-hidden shadow-2xl p-4 min-h-[500px] flex items-center justify-center transition-colors">

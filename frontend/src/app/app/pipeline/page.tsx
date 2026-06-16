@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RiRefreshLine, RiLoader4Line } from "react-icons/ri";
 import { fetchWithAuth } from '../../../lib/apiClient';
-import PipelineStatus from "../../../components/PipelineStatus";
 import TransactionTable from "../../../components/TransactionTable";
 import DataQualityMetrics from "../../../components/DataQualityMetrics";
 
@@ -78,7 +77,6 @@ export default function DataPipeline() {
         </div>
       ) : (
         <>
-          <PipelineStatus totalRows={totalRows} />
           <TransactionTable pipelineData={pipelineData} totalRows={totalRows} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <DataQualityMetrics dataQuality={dataQuality} />
