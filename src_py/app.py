@@ -81,7 +81,7 @@ st.markdown("---")
 
 DIRECTORIO_RAIZ = Path.cwd()
 PATHS = {'intermediate': DIRECTORIO_RAIZ / 'data' / 'intermediate'}
-MODEL_PATH = DIRECTORIO_RAIZ / 'modelo_sophia_final.pt'
+MODEL_PATH = DIRECTORIO_RAIZ / 'models' / 'modelo_sophia_final.pt'
 
 # =====================================================================
 # 1. CARGA DE DATOS
@@ -138,7 +138,7 @@ MES_ACTUAL = int(pd.Timestamp.now().month)
 motor_contenido = None
 if CONTENT_RECOMMENDER_DISPONIBLE:
     try:
-        motor_contenido = MotorContenido(compras_ctx, DIRECTORIO_RAIZ / METADATA_JSON_PATH.name)
+        motor_contenido = MotorContenido(compras_ctx, DIRECTORIO_RAIZ / METADATA_JSON_PATH)
         # 🌟 SOLUCIÓN 1: Inyectar productos nuevos al mapa para que aparezcan en los menús HITL
         if motor_contenido.hay_productos_nuevos():
             max_id_actual = max(mapa_productos.keys()) if mapa_productos else 0
