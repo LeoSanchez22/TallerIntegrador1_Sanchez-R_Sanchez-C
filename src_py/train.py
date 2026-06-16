@@ -8,6 +8,10 @@ Ejecutar en Google Colab o PC local con GPU/CPU:
 Genera: modelo_sophia_final.pt (pesos entrenados)
 """
 
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 import os
 import pandas as pd
 import numpy as np
@@ -17,6 +21,8 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import warnings
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
 warnings.filterwarnings('ignore')
 
 # =====================================================================
@@ -174,10 +180,29 @@ def ndcg_at_k(logits_batch, targets, k=5):
 # =====================================================================
 # 4. CARGA Y PREPARACIÓN DE DATOS
 # =====================================================================
+
+def cargar_compras(config):
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(dotenv_path=env_path)
+    db_uri = os.environ.get("DATABASE_URL")
+
+    if db_uri and "tu_contraseña" not in db_uri:
+        try:
+            engine = create_engine(db_uri)
+            compras = pd.read_sql_query("SELECT * FROM ventas_detalle", con=engine)
+            print("   ✔ Datos cargados desde Supabase / PostgreSQL")
+            return compras
+        except Exception as e:
+            print(f"⚠️ No se pudo cargar Supabase: {e}")
+            print("⚠️ Usando CSV local como respaldo...")
+
+    compras_path = config["data_dir"] / "compras_ctx.csv"
+    return pd.read_csv(compras_path)
+
+
 def preparar_datos(config):
     print("\n📂 Cargando datos...")
-    compras_path = config["data_dir"] / "compras_ctx.csv"
-    compras      = pd.read_csv(compras_path)
+    compras = cargar_compras(config)
 
     # Detectar columna de cliente
     for col in ['cliente_id', 'cliente', 'Cliente']:
@@ -245,6 +270,9 @@ def preparar_datos(config):
 def entrenar(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\n⚙️  Dispositivo: {device}")
+    
+    # Asegurar que el directorio de salida existe
+    Path(config["output_model"]).parent.mkdir(parents=True, exist_ok=True)
 
     ds_train, ds_val, ds_test, num_items, num_clientes, cliente2idx = preparar_datos(config)
 

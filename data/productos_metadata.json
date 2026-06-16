@@ -18,5 +18,13 @@
     "composicion": "Condroitin Sulfato de Sodio, Hipromelosa",
     "indicacion": "Alivio del ojo seco",
     "es_nuevo": true
+  },
+  "LAGRICELMOS 1": {
+    "sub_familia": "OFTALMOLOGÍA",
+    "mecanismo": "oftalmología potasio al fuego 0.4 lubricante hidratante lagrimal ocular alivia las cataratas",
+    "indicacion": "Alivia las cataratas",
+    "composicion": "Potasio al fuego 0.4",
+    "formato": "SUSPENSIÓN OFTÁLMICA",
+    "es_nuevo": true
   }
 }

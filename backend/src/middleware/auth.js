@@ -166,6 +166,39 @@ export async function authMiddleware(c, next) {
     }, 401);
   }
 
+  // 3. Verificar en la base de datos si el usuario ha sido eliminado lógicamente (deleted_at no nulo)
+  let realTimeRole = null
+  try {
+    const { pool } = await import('../config/db.js')
+    const userRes = await pool.query('SELECT deleted_at, raw_user_meta_data FROM auth.users WHERE id = $1', [payload.sub])
+    if (userRes.rows.length > 0) {
+      const dbUser = userRes.rows[0]
+      if (dbUser.deleted_at !== null) {
+        console.warn(`[JWT AUTH] Intento de acceso de usuario bloqueado/eliminado lógicamente: ${payload.email}`)
+        return c.json({
+          error: "No autorizado",
+          details: "Tu cuenta ha sido inhabilitada o eliminada lógicamente."
+        }, 401)
+      }
+      realTimeRole = dbUser.raw_user_meta_data?.role
+    }
+  } catch (dbErr) {
+    console.error(`[JWT AUTH] Error verificando soft delete en base de datos:`, dbErr.message)
+  }
+
+  // 4. Protección de rutas de administración (solo rol 'admin')
+  const requestPath = c.req.path
+  if (requestPath.startsWith('/api/users') && requestPath !== '/api/users/me') {
+    const userRole = realTimeRole || payload.user_metadata?.role || payload.raw_user_meta_data?.role || payload.role
+    if (userRole !== 'admin') {
+      console.warn(`[JWT AUTH] Acceso denegado a ruta admin (${requestPath}) para el usuario: ${payload.email} con rol: ${userRole}`)
+      return c.json({
+        error: "Acceso denegado",
+        details: "Se requieren privilegios de Administrador para acceder a este recurso."
+      }, 403)
+    }
+  }
+
   // Injectar el payload de usuario en el contexto del endpoint para consumo interno
   c.set('jwtPayload', payload)
   return await next()
