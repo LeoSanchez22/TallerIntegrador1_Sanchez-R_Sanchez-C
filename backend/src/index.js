@@ -10,6 +10,7 @@ import { precargarDatos, getCachedData, getIsReady, pool } from './config/db.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
+import fs from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -20,6 +21,22 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') }) // Carpeta backend
 const app = new Hono()
 
 const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000'
+
+function getPythonBin() {
+  const isWin = process.platform === 'win32'
+  const rootPath = path.resolve(__dirname, '../../')
+  if (isWin) {
+    if (fs.existsSync(path.resolve(rootPath, 'venv'))) {
+      return '.\\venv\\Scripts\\python.exe'
+    }
+    return '.\\.venv\\Scripts\\python.exe'
+  } else {
+    if (fs.existsSync(path.resolve(rootPath, 'venv'))) {
+      return './venv/bin/python'
+    }
+    return './.venv/bin/python'
+  }
+}
 
 // 1. Configuración de CORS Segura para Producción y Desarrollo
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -202,7 +219,8 @@ app.get('/api/proyeccion/:cliente_id', async (c) => {
 
   // 2. Fallback CLI: Ejecutar predict.py
   return new Promise((resolve, reject) => {
-    const pythonCmd = `.\\.venv\\Scripts\\python.exe src_py/predict.py ${clienteId}`
+    const pythonBin = getPythonBin()
+    const pythonCmd = `${pythonBin} src_py/predict.py ${clienteId}`
     const rootPath = path.resolve(__dirname, '../../')
     exec(pythonCmd, { cwd: rootPath }, (error, stdout, stderr) => {
       if (error) {
@@ -248,7 +266,8 @@ app.post('/api/productos/registrar', async (c) => {
   // 2. Fallback CLI: Ejecutar register_product.py
   return new Promise((resolve) => {
     const rootPath = path.resolve(__dirname, '../../')
-    const pythonCmd = `.\\.venv\\Scripts\\python.exe src_py/register_product.py "${nombre}" "${sub_familia}" "${indicacion}" "${composicion}" "${formato}"`
+    const pythonBin = getPythonBin()
+    const pythonCmd = `${pythonBin} src_py/register_product.py "${nombre}" "${sub_familia}" "${indicacion}" "${composicion}" "${formato}"`
     exec(pythonCmd, { cwd: rootPath }, (error, stdout, stderr) => {
       if (error) {
         console.error(`[HONO API] Fallback CLI registrar falló:`, stderr)
@@ -276,7 +295,8 @@ app.post('/api/model/train', async (c) => {
 
   // 2. Fallback CLI: Lanza subprocess de train.py de forma asíncrona
   const rootPath = path.resolve(__dirname, '../../')
-  exec('.\\.venv\\Scripts\\python.exe src_py/train.py', { cwd: rootPath }, (error, stdout, stderr) => {
+  const pythonBin = getPythonBin()
+  exec(`${pythonBin} src_py/train.py`, { cwd: rootPath }, (error, stdout, stderr) => {
     if (error) {
       console.error(`[HONO API] Entrenamiento fallido en CLI:`, stderr)
     } else {
