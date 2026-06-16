@@ -117,18 +117,18 @@ jobs:
             cd /var/www/g2-diegoleo/backend
             npm install --omit=dev
             
-            echo "🔄 Reiniciando backend en PM2 (sophia-backend)..."
+            echo "Reiniciando backend en PM2 (sophia-backend)..."
             pm2 reload sophia-backend --update-env || pm2 restart sophia-backend --update-env
             
             # --- 2. ACTUALIZAR, COMPILAR Y REINICIAR FRONTEND ---
-            echo "⚙️  Actualizando Frontend (Next.js)..."
+            echo "Actualizando Frontend (Next.js)..."
             cd /var/www/g2-diegoleo/frontend
             npm install
             
-            echo "🏗️  Compilando bundle de producción del Frontend..."
+            echo "Compilando bundle de producción del Frontend..."
             npm run build
             
-            echo "🔄 Reiniciando frontend en PM2 (sophia-frontend)..."
+            echo "Reiniciando frontend en PM2 (sophia-frontend)..."
             pm2 reload sophia-frontend --update-env || pm2 restart sophia-frontend --update-env
             
             # --- 3. REFRESCAR NGINX ---
