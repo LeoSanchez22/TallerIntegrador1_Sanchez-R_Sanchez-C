@@ -102,11 +102,11 @@ def cargar_compras_supabase():
         try:
             engine = create_engine(db_uri)
             compras = pd.read_sql_query("SELECT * FROM ventas_detalle", con=engine)
-            print("[predict] Datos cargados desde Supabase / PostgreSQL")
+            print("[predict] Datos cargados desde Supabase / PostgreSQL", file=sys.stderr)
             return compras
         except Exception as e:
-            print(f"[predict] No se pudo cargar Supabase: {e}")
-            print("[predict] Usando CSV local como respaldo...")
+            print(f"[predict] No se pudo cargar Supabase: {e}", file=sys.stderr)
+            print("[predict] Usando CSV local como respaldo...", file=sys.stderr)
 
     compras_path = DATA_DIR / "compras_ctx.csv"
     if not compras_path.exists():
