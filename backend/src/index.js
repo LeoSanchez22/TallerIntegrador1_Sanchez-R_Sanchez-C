@@ -5,10 +5,11 @@ import dotenv from 'dotenv'
 
 // Importaciones Modulares
 import { authMiddleware } from './middleware/auth.js'
-import { precargarDatos, getCachedData, getIsReady } from './config/db.js'
+import { precargarDatos, getCachedData, getIsReady, pool } from './config/db.js'
 
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { exec } from 'child_process'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -17,6 +18,8 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') }) // Raíz del proy
 dotenv.config({ path: path.resolve(__dirname, '../.env') }) // Carpeta backend
 
 const app = new Hono()
+
+const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000'
 
 // 1. Configuración de CORS Segura para Producción y Desarrollo
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -178,137 +181,299 @@ app.get('/api/pipeline', async (c) => {
   })
 })
 
-// Endpoint inteligente para generar proyecciones y XAI por Cliente
+// Endpoint inteligente para generar proyecciones y XAI por Cliente (Conexión a IA Service)
 app.get('/api/proyeccion/:cliente_id', async (c) => {
   const clienteId = Number(c.req.param('cliente_id'))
   if (isNaN(clienteId)) {
     return c.json({ error: "ID de cliente inválido" }, 400)
   }
 
-  if (!getIsReady() || getCachedData().length === 0) {
-    await precargarDatos()
-  }
-
-  const currentData = getCachedData()
-  if (currentData.length === 0) {
-    return c.json({ error: "Datos no disponibles temporalmente en la caché de RAM." }, 503)
-  }
-
-  const historialCliente = currentData.filter(row => Number(row.cliente_id) === clienteId)
-  const zonaCliente = historialCliente.length > 0
-    ? (historialCliente[0].zona_comercial || historialCliente[0].zona || historialCliente[0].vendedor || 'PHARMA - N2')
-    : 'PHARMA - N2'
-
-  console.log(`[XAI ENGINE] Generando proyecciones para Cliente: ${clienteId} (Historial: ${historialCliente.length} registros).`)
-
-  const productosCatalog = Array.from(new Set(currentData.map(row => row.producto_recomendado || row.producto || row.Producto))).filter(Boolean)
-  const historialNombres = Array.from(new Set(historialCliente.map(row => row.producto_recomendado || row.producto || row.Producto))).filter(Boolean)
-
-  const horizonteMeses = ["Mes +1 (Próximo Mes)", "Mes +2 (Siguiente Mes)", "Mes +3 (Proyección Trimestral)"]
-  const proyecciones = {}
-  let historialSimulado = [...historialNombres]
-
-  const reglasAfinidad = {
-    'LAGRICEL PF': 'SOPHIPREN',
-    'ZEBESTEN': 'DUSTALOX',
-    'ELIPTIC PF': 'TRAZIDEX U',
-    'AGGLAD': 'ELIPTIC PF',
-    'FLUMETOL NF': 'LAGRICEL PF'
-  }
-
-  const quiebresStock = {
-    'PHARMA - N2': ['ZEBESTEN', 'DUSTALOX'],
-    'PHARMA - N1': ['LAGRICEL'],
-    'MULTI-ZONA': []
-  }
-
-  horizonteMeses.forEach((mesNombre, paso) => {
-    let seed = clienteId + paso
-    function random() {
-      const x = Math.sin(seed++) * 10000
-      return x - Math.floor(x)
+  // 1. Intentar llamar al servicio FastAPI (Primario)
+  try {
+    const response = await fetch(`${FASTAPI_URL}/api/proyeccion/${clienteId}`)
+    if (response.ok) {
+      const data = await response.json()
+      console.log(`[HONO API] Predicción obtenida de FastAPI para cliente ${clienteId}`)
+      return c.json(data)
     }
+  } catch (err) {
+    console.log(`[HONO API] FastAPI no responde (${err.message}). Ejecutando fallback CLI...`)
+  }
 
-    const candidatos = productosCatalog.map(prod => {
-      const score = random()
-      const motor = random() > 0.6 ? 'GRU' : 'NCF'
-      return { producto: prod, score, motor }
-    })
-
-    candidatos.sort((a, b) => b.score - a.score)
-
-    const recomendadosMes = []
-    let aprobados = 0
-
-    for (let i = 0; i < candidatos.length; i++) {
-      if (aprobados >= 3) break
-      const cand = candidatos[i]
-
-      const sinStock = quiebresStock[zonaCliente] || []
-      if (sinStock.includes(cand.producto)) continue
-
-      if (cand.producto === 'LAGRICEL PF' && historialSimulado.includes('LAGRICEL')) continue
-
-      let explicacion = ""
-      if (cand.motor === 'GRU') {
-        explicacion = `Reposición Inminente: Patrón secuencial prevé posible quiebre en clínica para ${mesNombre}.`
-      } else {
-        const afinidad = reglasAfinidad[cand.producto]
-        if (afinidad && historialSimulado.includes(afinidad)) {
-          explicacion = `Cross-Selling (Afinidad): Clínicas con consumo de ${afinidad} requieren incorporar ${cand.producto} en ${mesNombre}.`
-        } else {
-          explicacion = `Descubrimiento Estratégico: Recomendado por afinidad de perfil institucional (NCF) para ${mesNombre}.`
-        }
+  // 2. Fallback CLI: Ejecutar predict.py
+  return new Promise((resolve, reject) => {
+    const pythonCmd = `.\\.venv\\Scripts\\python.exe src_py/predict.py ${clienteId}`
+    const rootPath = path.resolve(__dirname, '../../')
+    exec(pythonCmd, { cwd: rootPath }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[HONO API] Fallback CLI falló:`, stderr)
+        return resolve(c.json({ error: "Error en motor predictivo de respaldo", details: stderr }, 500))
       }
-
-      recomendadosMes.push({
-        producto: cand.producto,
-        probabilidad: Math.round(cand.score * 10000) / 100,
-        motor: cand.motor,
-        justificacion: explicacion
-      })
-
-      aprobados++
-
-      if (aprobados === 1) {
-        historialSimulado.push(cand.producto)
-      }
-    }
-
-    proyecciones[mesNombre] = recomendadosMes
-  })
-
-  // Generación de Grafo XAI para render interactivo
-  const nodos = [
-    { id: `Cliente_${clienteId}`, label: `Cliente ${clienteId}`, layer: 0, type: 'cliente' }
-  ]
-  const enlaces = []
-
-  const ultimosHistorial = historialNombres.slice(-5)
-  ultimosHistorial.forEach(item => {
-    nodos.push({ id: item, label: item, layer: 1, type: 'historial' })
-    enlaces.push({ source: `Cliente_${clienteId}`, target: item, type: 'compra', label: 'Compra' })
-  })
-
-  const recomendadosMes1 = proyecciones[horizonteMeses[0]] || []
-  recomendadosMes1.forEach(rec => {
-    nodos.push({ id: rec.producto, label: rec.producto, layer: 2, type: 'proyeccion', motor: rec.motor })
-    enlaces.push({ source: `Cliente_${clienteId}`, target: rec.producto, type: 'sugerido', label: rec.motor })
-
-    ultimosHistorial.forEach(hist => {
-      if (rec.justificacion.includes(hist)) {
-        enlaces.push({ source: hist, target: rec.producto, type: 'apriori', label: 'Afinidad' })
+      try {
+        const data = JSON.parse(stdout)
+        console.log(`[HONO API] Predicción exitosa mediante fallback CLI para cliente ${clienteId}`)
+        return resolve(c.json(data))
+      } catch (parseErr) {
+        console.error(`[HONO API] Error parseando stdout del CLI:`, stdout)
+        return resolve(c.json({ error: "Error parseando respuesta de IA", details: parseErr.message }, 500))
       }
     })
+  })
+})
+
+// Endpoint para registrar un nuevo producto (Nuevos Lanzamientos)
+app.post('/api/productos/registrar', async (c) => {
+  const body = await c.req.json()
+  const { nombre, sub_familia, indicacion, composicion, formato } = body
+
+  if (!nombre || !sub_familia || !indicacion || !composicion || !formato) {
+    return c.json({ error: "Faltan campos obligatorios" }, 400)
+  }
+
+  // 1. Intentar llamar a FastAPI
+  try {
+    const response = await fetch(`${FASTAPI_URL}/api/productos/registrar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    if (response.ok) {
+      const data = await response.json()
+      return c.json(data)
+    }
+  } catch (err) {
+    console.log(`[HONO API] FastAPI registrar_producto offline. Corriendo CLI fallback...`)
+  }
+
+  // 2. Fallback CLI: Ejecutar register_product.py
+  return new Promise((resolve) => {
+    const rootPath = path.resolve(__dirname, '../../')
+    const pythonCmd = `.\\.venv\\Scripts\\python.exe src_py/register_product.py "${nombre}" "${sub_familia}" "${indicacion}" "${composicion}" "${formato}"`
+    exec(pythonCmd, { cwd: rootPath }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[HONO API] Fallback CLI registrar falló:`, stderr)
+        return resolve(c.json({ error: "No se pudo registrar en la base de datos local", details: stderr }, 500))
+      }
+      return resolve(c.json({ success: true, producto: { nombre, sub_familia, indicacion, composicion, formato, es_nuevo: true } }))
+    })
+  })
+})
+
+// Endpoint para iniciar el entrenamiento de AttentionGRU
+app.post('/api/model/train', async (c) => {
+  // 1. Intentar llamar a FastAPI
+  try {
+    const response = await fetch(`${FASTAPI_URL}/api/train`, {
+      method: 'POST'
+    })
+    if (response.ok) {
+      const data = await response.json()
+      return c.json(data)
+    }
+  } catch (err) {
+    console.log(`[HONO API] FastAPI train offline. Corriendo CLI fallback asíncrono...`)
+  }
+
+  // 2. Fallback CLI: Lanza subprocess de train.py de forma asíncrona
+  const rootPath = path.resolve(__dirname, '../../')
+  exec('.\\.venv\\Scripts\\python.exe src_py/train.py', { cwd: rootPath }, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`[HONO API] Entrenamiento fallido en CLI:`, stderr)
+    } else {
+      console.log(`[HONO API] Entrenamiento completado en CLI exitosamente.`)
+    }
   })
 
   return c.json({
-    clienteId,
-    zona: zonaCliente,
-    historial: historialNombres,
-    proyecciones,
-    grafo: { nodos, enlaces }
+    status: "started",
+    message: "Entrenamiento iniciado en segundo plano (Fallback CLI)."
   })
+})
+
+// Endpoint para consultar estado del entrenamiento
+app.get('/api/model/train/status', async (c) => {
+  try {
+    const response = await fetch(`${FASTAPI_URL}/api/train/status`)
+    if (response.ok) {
+      const data = await response.json()
+      return c.json(data)
+    }
+  } catch (err) {
+    // Si FastAPI está caído
+  }
+  return c.json({
+    is_training: false,
+    logs: ["Microservicio FastAPI offline. Los logs en tiempo real solo están disponibles si levanta servidor_front.py."]
+  })
+})
+
+// --- ENDPOINTS DE ADMINISTRACIÓN DE REPRESENTANTES (CRUD) ---
+
+// 1. Obtener perfil en tiempo real del usuario autenticado (para sync inmediato de frontend)
+app.get('/api/users/me', async (c) => {
+  const payload = c.get('jwtPayload')
+  if (!payload) {
+    return c.json({ error: 'No autenticado' }, 401)
+  }
+  try {
+    const res = await pool.query('SELECT raw_user_meta_data FROM auth.users WHERE id = $1', [payload.sub])
+    if (res.rows.length === 0) {
+      return c.json({ error: 'Usuario no encontrado' }, 404)
+    }
+    const meta = res.rows[0].raw_user_meta_data || {}
+    return c.json({
+      role: meta.role || '',
+      name: meta.full_name || '',
+      company: meta.company || ''
+    })
+  } catch (err) {
+    console.error('[API USERS] Error obteniendo perfil /me:', err.message)
+    return c.json({ error: 'Error del servidor', details: err.message }, 500)
+  }
+})
+
+// 2. Listar representantes
+app.get('/api/users', async (c) => {
+  try {
+    const res = await pool.query(`
+      SELECT 
+        id, 
+        email, 
+        created_at, 
+        deleted_at,
+        raw_user_meta_data
+      FROM auth.users 
+      ORDER BY created_at DESC
+    `)
+    const list = res.rows.map(row => ({
+      id: row.id,
+      email: row.email,
+      created_at: row.created_at,
+      deleted_at: row.deleted_at,
+      name: row.raw_user_meta_data?.full_name || '',
+      role: row.raw_user_meta_data?.role || '',
+      company: row.raw_user_meta_data?.company || ''
+    }))
+    return c.json({ data: list })
+  } catch (err) {
+    console.error('[API USERS] Error listando usuarios:', err.message)
+    return c.json({ error: 'Error al listar usuarios', details: err.message }, 500)
+  }
+})
+
+// 2. Crear representante
+app.post('/api/users', async (c) => {
+  try {
+    const { email, password, name, role, company } = await c.req.json()
+    if (!email || !password || !name || !role) {
+      return c.json({ error: 'Faltan campos obligatorios (email, password, name, role)' }, 400)
+    }
+
+    // Insertar en auth.users usando pgcrypto
+    const metadata = JSON.stringify({
+      full_name: name,
+      role: role,
+      company: company || 'Laboratorios Sophia S.A.'
+    })
+
+    const query = `
+      INSERT INTO auth.users (
+        instance_id, id, aud, role, email, encrypted_password,
+        email_confirmed_at, recovery_sent_at, last_sign_in_at,
+        raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+        confirmation_token, email_change, email_change_token_new,
+        phone, phone_confirmed_at, phone_change, phone_change_token,
+        email_change_token_current, email_change_confirm_status,
+        banned_until, reauthentication_token, reauthentication_sent_at,
+        is_super_admin, confirmed_at, is_anonymous
+      ) VALUES (
+        '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', $1, crypt($2, gen_salt('bf', 10)),
+        NOW(), NULL, NULL,
+        '{"provider": "email", "providers": ["email"]}'::jsonb, $3::jsonb, NOW(), NOW(),
+        '', '', '',
+        NULL, NULL, '', '',
+        '', 0,
+        NULL, '', NULL,
+        FALSE, NOW(), FALSE
+      ) RETURNING id;
+    `
+    const res = await pool.query(query, [email.toLowerCase().trim(), password, metadata])
+    return c.json({ success: true, userId: res.rows[0].id })
+  } catch (err) {
+    console.error('[API USERS] Error creando usuario:', err.message)
+    return c.json({ error: 'Error al crear usuario (el correo podría estar ya registrado)', details: err.message }, 500)
+  }
+})
+
+// 3. Editar representante
+app.put('/api/users/:id', async (c) => {
+  const userId = c.req.param('id')
+  try {
+    const { name, role, company, password } = await c.req.json()
+    if (!name || !role) {
+      return c.json({ error: 'Faltan campos obligatorios (name, role)' }, 400)
+    }
+
+    // Obtener metadatos actuales para combinarlos
+    const userRes = await pool.query('SELECT raw_user_meta_data FROM auth.users WHERE id = $1', [userId])
+    if (userRes.rows.length === 0) {
+      return c.json({ error: 'Usuario no encontrado' }, 404)
+    }
+
+    const currentMeta = userRes.rows[0].raw_user_meta_data || {}
+    const updatedMeta = JSON.stringify({
+      ...currentMeta,
+      full_name: name,
+      role: role,
+      company: company || currentMeta.company || 'Laboratorios Sophia S.A.'
+    })
+
+    if (password && password.trim() !== '') {
+      // Actualizar metadatos y contraseña
+      await pool.query(`
+        UPDATE auth.users 
+        SET 
+          raw_user_meta_data = $1::jsonb,
+          encrypted_password = crypt($2, gen_salt('bf', 10)),
+          updated_at = NOW()
+        WHERE id = $3
+      `, [updatedMeta, password, userId])
+    } else {
+      // Solo actualizar metadatos
+      await pool.query(`
+        UPDATE auth.users 
+        SET 
+          raw_user_meta_data = $1::jsonb,
+          updated_at = NOW()
+        WHERE id = $2
+      `, [updatedMeta, userId])
+    }
+
+    return c.json({ success: true })
+  } catch (err) {
+    console.error('[API USERS] Error actualizando usuario:', err.message)
+    return c.json({ error: 'Error al actualizar usuario', details: err.message }, 500)
+  }
+})
+
+// 4. Borrado lógico (soft delete) / Restauración
+app.delete('/api/users/:id', async (c) => {
+  const userId = c.req.param('id')
+  const restore = c.req.query('restore') === 'true'
+  try {
+    if (restore) {
+      // Restaurar usuario (remover deleted_at)
+      await pool.query('UPDATE auth.users SET deleted_at = NULL, updated_at = NOW() WHERE id = $1', [userId])
+      return c.json({ success: true, message: 'Usuario restaurado con éxito' })
+    } else {
+      // Borrado lógico (marcar con deleted_at)
+      await pool.query('UPDATE auth.users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1', [userId])
+      return c.json({ success: true, message: 'Usuario inhabilitado con éxito' })
+    }
+  } catch (err) {
+    console.error('[API USERS] Error en borrado lógico de usuario:', err.message)
+    return c.json({ error: 'Error al inhabilitar/restaurar usuario', details: err.message }, 500)
+  }
 })
 
 // 5. Arranque del Servidor Hono

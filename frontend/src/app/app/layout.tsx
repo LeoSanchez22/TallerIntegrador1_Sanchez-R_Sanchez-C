@@ -19,6 +19,8 @@ import {
   RiTerminalBoxLine,
 } from "react-icons/ri";
 import { supabase } from "../../lib/supabase";
+import { fetchWithAuth } from "../../lib/apiClient";
+
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,6 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { path: "/app/statistics", icon: RiBarChartBoxLine, label: "Estadísticas" },
     { path: "/app/pipeline", icon: RiDatabase2Line, label: "Data Pipeline" },
     { path: "/app/notebook", icon: RiTerminalBoxLine, label: "Notebook MVP" },
+    { path: "/app/users", icon: RiUserLine, label: "Gestionar Usuarios", adminOnly: true },
     { path: "/app/profile", icon: RiUserLine, label: "Mi Perfil" },
   ];
 
@@ -44,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const isLight = document.documentElement.classList.contains('light');
     setTheme(isLight ? 'light' : 'dark');
 
-    // 2. Check current active session
+    // 2. Check current active session and sync real-time role
     let mounted = true;
     const checkSession = async () => {
       try {
@@ -52,8 +55,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (!session) {
           router.push("/login");
         } else {
+          // Fetch real-time profile from database via Hono.js
+          let dbUserMeta = null;
+          try {
+            const profileRes = await fetchWithAuth('/api/users/me');
+            if (profileRes.ok) {
+              dbUserMeta = await profileRes.json();
+            } else if (profileRes.status === 401) {
+              console.warn("[AUTH INIT] Cuenta inhabilitada. Cerrando sesión...");
+              await supabase.auth.signOut();
+              router.push("/login");
+              return;
+            }
+          } catch (profileErr) {
+            console.error("Error fetching real-time role profile:", profileErr);
+          }
+
           if (mounted) {
-            setUser(session.user);
+            let currentUser = session.user;
+            if (dbUserMeta) {
+              const localMeta = session.user.user_metadata || {};
+              const roleChanged = dbUserMeta.role !== localMeta.role;
+              const nameChanged = dbUserMeta.name !== localMeta.full_name;
+              const companyChanged = dbUserMeta.company !== localMeta.company;
+
+              if (roleChanged || nameChanged || companyChanged) {
+                console.log(`[AUTH SYNC] Datos locales difieren de base de datos. Sincronizando...`);
+                // Refrescar sesión para actualizar el token JWT local de Supabase de inmediato
+                const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+                if (refreshedSession) {
+                  currentUser = refreshedSession.user;
+                }
+              }
+            }
+            setUser(currentUser);
             setCheckingAuth(false);
           }
         }
@@ -76,7 +111,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     });
 
-    // 4. Click outside listener
+    // 4. Polling de sincronización de datos en tiempo real (evita cerrar sesión/entrar de nuevo)
+    const roleSyncInterval = setInterval(async () => {
+      if (!mounted) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        
+        const profileRes = await fetchWithAuth('/api/users/me');
+        if (profileRes.status === 401) {
+          console.warn("[AUTH SYNC LOG] Cuenta inhabilitada en segundo plano. Cerrando sesión...");
+          await supabase.auth.signOut();
+          router.push("/login");
+          return;
+        }
+
+        if (profileRes.ok) {
+          const dbUserMeta = await profileRes.json();
+          if (dbUserMeta) {
+            const localMeta = session.user.user_metadata || {};
+            const roleChanged = dbUserMeta.role !== localMeta.role;
+            const nameChanged = dbUserMeta.name !== localMeta.full_name;
+            const companyChanged = dbUserMeta.company !== localMeta.company;
+
+            if (roleChanged || nameChanged || companyChanged) {
+              console.log(`[AUTH SYNC LOG] Perfil desactualizado detectado. Refrescando token...`);
+              const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+              if (refreshedSession && mounted) {
+                setUser(refreshedSession.user);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Silenciar errores de red en polling de segundo plano
+      }
+    }, 5000);
+
+    // 5. Click outside listener
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
@@ -87,6 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearInterval(roleSyncInterval);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [router]);
@@ -143,25 +216,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = pathname === item.path || (item.path !== '/app' && pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 font-semibold tracking-wide text-sm ${
-                  isActive
-                    ? "bg-emerald-500/10 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 shadow-inner font-bold"
-                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-white"
-                }`}
-              >
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-emerald-500' : ''}`} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {navItems
+            .filter((item) => !item.adminOnly || user?.user_metadata?.role === 'admin')
+            .map((item) => {
+              const isActive = pathname === item.path || (item.path !== '/app' && pathname.startsWith(item.path));
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 font-semibold tracking-wide text-sm ${
+                    isActive
+                      ? "bg-emerald-500/10 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 shadow-inner font-bold"
+                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-white"
+                  }`}
+                >
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-emerald-500' : ''}`} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
         </nav>
 
         {/* User Info in Sidebar */}

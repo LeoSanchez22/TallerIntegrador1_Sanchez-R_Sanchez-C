@@ -43,3 +43,10 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Local env and caches
+.venv/
+__pycache__/
+.pytest_cache/
+*.zip
+
