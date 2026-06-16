@@ -277,10 +277,10 @@ def predecir(cliente_id):
             
             # Mapear motor a la estrategia comercial descriptiva
             estrategia_map = {
-                'Atención-GRU': "🔄 Reposición Sugerida (Ciclo de Compra)",
-                'Cold Start':   "⭐ Éxito Local (Top Ventas de la Zona)",
-                'NCF':          "🚀 Oportunidad de Expansión (Cross-Selling)",
-                'Contenido (Nuevo Lanzamiento)': "🆕 Nuevo Lanzamiento (Afinidad Terapéutica)",
+                'Atención-GRU': "Reposición Sugerida (Ciclo de Compra)",
+                'Cold Start':   "Éxito Local (Top Ventas de la Zona)",
+                'NCF':          "Oportunidad de Expansión (Cross-Selling)",
+                'Contenido (Nuevo Lanzamiento)': "Nuevo Lanzamiento (Afinidad Terapéutica)",
             }
             
             recomendaciones_mes.append({
