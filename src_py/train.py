@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore')
 # =====================================================================
 CONFIG = {
     "data_dir":        Path("data/intermediate"),
-    "output_model":    Path("modelo_sophia_final.pt"),
+    "output_model":    Path("models/modelo_sophia_final.pt"),
     "embedding_dim":   64,
     "hidden_dim":      128,
     "dropout":         0.3,
