@@ -79,7 +79,7 @@ st.title("Dashboard Predictivo Comercial y Proyección de Demanda (Cloud)")
 st.markdown("### Laboratorios Sophia — Sistema de Inteligencia Explicable conectado a Supabase")
 st.markdown("---")
 
-DIRECTORIO_RAIZ = Path.cwd()
+DIRECTORIO_RAIZ = Path(__file__).resolve().parent
 PATHS = {'intermediate': DIRECTORIO_RAIZ / 'data' / 'intermediate'}
 MODEL_PATH = DIRECTORIO_RAIZ / 'models' / 'modelo_sophia_final.pt'
 

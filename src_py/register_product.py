@@ -23,7 +23,7 @@ if __name__ == "__main__":
             indicacion=indicacion,
             composicion=composicion,
             formato=formato,
-            ruta=Path("data/productos_metadata.json")
+            ruta=METADATA_JSON_PATH
         )
         print("SUCCESS")
     except Exception as e:

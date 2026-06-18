@@ -10,50 +10,86 @@ interface TransactionTableProps {
 
 export default function TransactionTable({ pipelineData, totalRows }: TransactionTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState('');
 
-  // Filtrado reactivo en tiempo real por Cliente ID, Zona Comercial y Producto (SKU)
+  // Obtener regiones/zonas comerciales únicas para el filtro de forma reactiva
+  const regiones = useMemo(() => {
+    if (!pipelineData?.sample_data) return [];
+    const set = new Set<string>();
+    pipelineData.sample_data.forEach((row: any) => {
+      const z = row.zona || row.zona_comercial;
+      if (z) set.add(z);
+    });
+    return Array.from(set).sort();
+  }, [pipelineData?.sample_data]);
+
+  // Filtrado reactivo en tiempo real por Cliente ID, Zona Comercial, Producto (SKU) y Región
   const filteredData = useMemo(() => {
     if (!pipelineData?.sample_data) return [];
     return pipelineData.sample_data.filter((row: any) => {
+      // 1. Filtro por Región/Zona
+      if (selectedRegion) {
+        const rowRegion = row.zona || row.zona_comercial;
+        if (rowRegion !== selectedRegion) return false;
+      }
+
+      // 2. Buscador dinámico por Cliente ID, Producto, Zona o ID Local
       const term = searchTerm.toLowerCase().trim();
       if (!term) return true;
 
       const matchClienteId = row.cliente_id?.toString().includes(term);
       const matchProducto = row.producto?.toLowerCase().includes(term);
       const matchZona = (row.zona || row.zona_comercial)?.toLowerCase().includes(term);
+      const matchId = row.id?.toString().includes(term);
 
-      return matchClienteId || matchProducto || matchZona;
+      return matchClienteId || matchProducto || matchZona || matchId;
     });
-  }, [pipelineData?.sample_data, searchTerm]);
+  }, [pipelineData?.sample_data, searchTerm, selectedRegion]);
 
   return (
     <div className="bg-white dark:bg-neutral-900/40 backdrop-blur-md rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-xl overflow-hidden transition-all duration-200">
-      <div className="px-6 py-4 bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h3 className="font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+      <div className="px-6 py-4 bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <h3 className="font-bold text-neutral-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
           <RiTableLine className="w-5 h-5 text-emerald-500" />
-          Muestra de Transacciones
+          Historial de Compras de Todos los Clientes (Transacciones)
         </h3>
 
-        {/* Buscador Dinámico */}
-        <div className="relative w-full md:w-80">
-          <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-4 h-4 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Buscar por Cliente ID, Zona o Producto..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded-lg text-xs focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 transition-colors"
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          {/* Filtro de Región */}
+          <select
+            value={selectedRegion}
+            onChange={(e) => setSelectedRegion(e.target.value)}
+            className="w-full sm:w-48 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 rounded-lg text-xs focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white cursor-pointer transition-colors"
+          >
+            <option value="">Todas las Regiones</option>
+            {regiones.map((reg) => (
+              <option key={reg} value={reg}>
+                {reg}
+              </option>
+            ))}
+          </select>
+
+          {/* Buscador Dinámico */}
+          <div className="relative w-full sm:w-64">
+            <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-4 h-4 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar por ID, Cliente, Producto..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 rounded-lg text-xs focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 transition-colors"
+            />
+          </div>
         </div>
 
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-neutral-500 whitespace-nowrap">
           Mostrando {filteredData.length} de {totalRows.toLocaleString()}
         </span>
       </div>
 
       <div className="overflow-x-auto max-h-[400px]">
         <table className="w-full text-left border-collapse">
-          <thead className="bg-neutral-55 dark:bg-neutral-900/80 sticky top-0 z-10 backdrop-blur-sm">
+          <thead className="bg-neutral-50 dark:bg-neutral-900/80 sticky top-0 z-10 backdrop-blur-sm">
             <tr>
               <th className="p-4 border-b border-neutral-200 dark:border-neutral-800 text-xs font-black tracking-wider text-neutral-500 uppercase">ID Local</th>
               <th className="p-4 border-b border-neutral-200 dark:border-neutral-800 text-xs font-black tracking-wider text-neutral-500 uppercase">Cliente ID</th>

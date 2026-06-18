@@ -89,10 +89,32 @@ def obtener_proyeccion(cliente_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al realizar predicción: {str(e)}")
 
+@app.get("/api/productos/nuevos")
+def obtener_productos_nuevos():
+    try:
+        import json
+        ruta_json = DIRECTORIO_SRC_PY / "data" / "productos_metadata.json"
+        if ruta_json.exists():
+            with open(ruta_json, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            lista = []
+            for k, v in data.items():
+                lista.append({
+                    "nombre": k,
+                    "sub_familia": v.get("sub_familia", ""),
+                    "indicacion": v.get("indicacion", ""),
+                    "composicion": v.get("composicion", ""),
+                    "formato": v.get("formato", ""),
+                })
+            return lista
+        return []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener productos nuevos: {str(e)}")
+
 @app.post("/api/productos/registrar")
 def registrar_producto(prod: ProductoNuevoSchema):
     try:
-        ruta_json = DIRECTORIO_RAIZ / "data" / "productos_metadata.json"
+        ruta_json = DIRECTORIO_SRC_PY / "data" / "productos_metadata.json"
         # Crear directorios padres si no existen
         ruta_json.parent.mkdir(parents=True, exist_ok=True)
         

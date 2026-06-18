@@ -29,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const navItems = [
@@ -47,7 +48,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const isLight = document.documentElement.classList.contains('light');
     setTheme(isLight ? 'light' : 'dark');
 
-    // 2. Check current active session and sync real-time role
+    // 2. Sync sidebar state with localStorage
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sidebarCollapsed');
+      if (stored === 'true') {
+        setIsSidebarCollapsed(true);
+      }
+    }
+
+    // 3. Check current active session and sync real-time role
     let mounted = true;
     const checkSession = async () => {
       try {
@@ -99,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
     checkSession();
 
-    // 3. Listen for dynamic authentication state changes (Cybersecurity Best Practice)
+    // 4. Listen for dynamic authentication state changes (Cybersecurity Best Practice)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         router.push("/login");
@@ -111,7 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     });
 
-    // 4. Polling de sincronización de datos en tiempo real (evita cerrar sesión/entrar de nuevo)
+    // 5. Polling de sincronización de datos en tiempo real (evita cerrar sesión/entrar de nuevo)
     const roleSyncInterval = setInterval(async () => {
       if (!mounted) return;
       try {
@@ -148,7 +157,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }, 5000);
 
-    // 5. Click outside listener
+    // 6. Click outside listener
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
@@ -176,6 +185,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       localStorage.theme = 'dark';
       setTheme('dark');
     }
+  };
+
+  const toggleSidebar = () => {
+    const newVal = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newVal);
+    localStorage.setItem('sidebarCollapsed', String(newVal));
   };
 
   const handleLogout = async () => {
@@ -208,12 +223,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white flex selection:bg-emerald-500/30 font-sans antialiased transition-colors duration-200">
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-neutral-900/60 backdrop-blur-2xl border-r border-neutral-200 dark:border-neutral-800/80 text-neutral-800 dark:text-white flex flex-col fixed h-full shadow-2xl z-20 transition-all duration-200">
+      <aside className={`bg-white dark:bg-neutral-900/60 backdrop-blur-2xl border-r border-neutral-200 dark:border-neutral-800/80 text-neutral-800 dark:text-white flex flex-col fixed h-full shadow-2xl z-20 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         {/* Logo */}
-        <div className="p-6 border-b border-neutral-200 dark:border-neutral-800/80">
-          <div className="flex items-center justify-center">
-            <img src="/logo-sophia-color.png" alt="Logo" className="h-10 w-auto object-contain" />
-          </div>
+        <div className="p-6 border-b border-neutral-200 dark:border-neutral-800/80 h-20 flex items-center justify-center overflow-hidden">
+          {isSidebarCollapsed ? (
+            <span className="text-xl font-black text-emerald-500 tracking-wider animate-fadeIn">S.</span>
+          ) : (
+            <img src="/logo-sophia-color.png" alt="Logo" className="h-10 w-auto object-contain animate-fadeIn" />
+          )}
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -225,14 +242,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Link
                   key={item.path}
                   href={item.path}
+                  title={isSidebarCollapsed ? item.label : undefined}
                   className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 font-semibold tracking-wide text-sm ${
                     isActive
                       ? "bg-emerald-500/10 text-emerald-650 dark:text-emerald-400 border border-emerald-500/20 shadow-inner font-bold"
                       : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-white"
-                  }`}
+                  } ${isSidebarCollapsed ? 'justify-center px-2' : ''}`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-emerald-500' : ''}`} />
-                  <span>{item.label}</span>
+                  <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-emerald-500' : ''}`} />
+                  {!isSidebarCollapsed && <span className="truncate animate-fadeIn">{item.label}</span>}
                 </Link>
               );
             })}
@@ -241,21 +259,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* User Info in Sidebar */}
         <div className="p-4 border-t border-neutral-200 dark:border-neutral-800/80 bg-neutral-100/50 dark:bg-neutral-950/30 transition-colors duration-200">
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-9 h-9 bg-neutral-200 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-full flex items-center justify-center shadow-inner">
+            <div className="w-9 h-9 bg-neutral-200 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-full flex items-center justify-center shadow-inner flex-shrink-0">
               <span className="text-xs text-neutral-600 dark:text-neutral-300 font-black tracking-wider">{userInitials}</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-neutral-800 dark:text-neutral-200 truncate">{userName}</p>
-              <p className="text-[10px] uppercase tracking-widest font-black text-emerald-650 dark:text-emerald-500 truncate">Miembro Sophia</p>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="flex-1 min-w-0 animate-fadeIn">
+                <p className="text-sm font-bold text-neutral-800 dark:text-neutral-200 truncate">{userName}</p>
+                <p className="text-[10px] uppercase tracking-widest font-black text-emerald-650 dark:text-emerald-500 truncate">Miembro Sophia</p>
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
         {/* Top Bar */}
-        <header className="h-20 bg-white/50 dark:bg-neutral-950/50 backdrop-blur-xl border-b border-neutral-200 dark:border-neutral-800/80 px-8 flex items-center justify-end sticky top-0 z-10 shadow-sm transition-colors duration-200">
+        <header className="h-20 bg-white/50 dark:bg-neutral-950/50 backdrop-blur-xl border-b border-neutral-200 dark:border-neutral-800/80 px-8 flex items-center justify-between sticky top-0 z-10 shadow-sm transition-colors duration-200">
+          {/* Toggle Sidebar Button */}
+          <button
+            onClick={toggleSidebar}
+            aria-label="Toggle Sidebar"
+            className="p-2.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-all flex items-center justify-center border border-neutral-200/50 dark:border-neutral-800/80 bg-white dark:bg-neutral-900 shadow-sm hover:shadow active:scale-95"
+          >
+            <svg className="w-5 h-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {isSidebarCollapsed ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h16" />
+              )}
+            </svg>
+          </button>
+
           <div className="flex items-center gap-6">
             {/* Theme Toggle Button */}
             <button

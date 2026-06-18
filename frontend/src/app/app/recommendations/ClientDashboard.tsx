@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { fetchWithAuth } from '../../../lib/apiClient'
 import { ListChecks, Network, TrendingUp, Cpu, PlusCircle, Terminal, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
@@ -10,12 +10,26 @@ interface ProyeccionItem {
   probabilidad: number
   motor: string
   justificacion: string
+  modelo_oculto?: string
+  item_atencion?: string
+  peso_atencion?: number
+  detalles_pasos?: {
+    input: string
+    modelo: string
+    filtro: string
+    xai: string
+  }
 }
 
 interface ProyeccionResponse {
   clienteId: number
   zona: string
   historial: string[]
+  historial_detallado?: {
+    producto: string
+    mes: string
+    cantidad: number
+  }[]
   proyecciones: Record<string, ProyeccionItem[]>
 }
 
@@ -49,8 +63,42 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [proyeccionData, setProyeccionData] = useState<ProyeccionResponse | null>(null)
   const [activeMes, setActiveMes] = useState('Mes +1 (Próximo Mes)')
   const [hoveredEnlace, setHoveredEnlace] = useState<any>(null)
+  const [lastActiveLabel, setLastActiveLabel] = useState('Detalle de Relación')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (hoveredEnlace?.label) {
+      setLastActiveLabel(hoveredEnlace.label)
+    }
+  }, [hoveredEnlace])
+
+  const clientHistory = useMemo(() => {
+    if (!selectedCliente || !initialData) return []
+    return initialData
+      .filter(row => Number(row.cliente_id) === Number(selectedCliente))
+      .map(row => {
+        // Resolve month robustly like app.py
+        let mesText = 'N/D'
+        if (row.mes_nombre && String(row.mes_nombre).trim().toLowerCase() !== 'nan') {
+          mesText = String(row.mes_nombre).trim().toUpperCase()
+        } else if (row.mes_abbr && String(row.mes_abbr).trim().toLowerCase() !== 'nan') {
+          mesText = String(row.mes_abbr).trim().toUpperCase()
+        } else if (row.mes_num) {
+          const nombresMeses: Record<number, string> = {
+            1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO', 
+            7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+          }
+          mesText = nombresMeses[Number(row.mes_num)] || `MES ${row.mes_num}`
+        }
+
+        return {
+          producto: row.producto || row.descripcion || 'Fármaco Desconocido',
+          mes: mesText,
+          cantidad: Number(row.cantidad) || 1
+        }
+      })
+  }, [selectedCliente, initialData])
 
   // States for Product Registration
   const [newProduct, setNewProduct] = useState({
@@ -63,6 +111,32 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [regLoading, setRegLoading] = useState(false)
   const [regSuccess, setRegSuccess] = useState<string | null>(null)
   const [regError, setRegError] = useState<string | null>(null)
+  const [registeredProducts, setRegisteredProducts] = useState<any[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [expandedRecIndex, setExpandedRecIndex] = useState<number | null>(0)
+
+  // Fetch registered products from the Hono proxy
+  async function fetchRegisteredProducts() {
+    setLoadingProducts(true)
+    try {
+      const res = await fetchWithAuth('/api/productos/nuevos')
+      if (res.ok) {
+        const data = await res.json()
+        setRegisteredProducts(data)
+      }
+    } catch (err) {
+      console.error("Error al obtener productos registrados:", err)
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
+
+  // Load products when register tab is active
+  useEffect(() => {
+    if (activeTab === 'register') {
+      fetchRegisteredProducts()
+    }
+  }, [activeTab])
 
   // States for MLOps Training
   const [trainingActive, setTrainingActive] = useState(false)
@@ -159,6 +233,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     setLoading(true)
     setProyeccionData(null)
     setError(null)
+    setExpandedRecIndex(0)
     try {
       const res = await fetchWithAuth(`/api/proyeccion/${selectedCliente}`)
       if (!res.ok) {
@@ -208,6 +283,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
         composicion: '',
         formato: 'SUSPENSIÓN OFTÁLMICA'
       })
+      await fetchRegisteredProducts()
     } catch (err: any) {
       setRegError(err.message || 'No se pudo realizar el registro.')
     } finally {
@@ -481,7 +557,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   {Object.keys(proyeccionData.proyecciones).map((mes) => (
                     <button
                       key={mes}
-                      onClick={() => setActiveMes(mes)}
+                      onClick={() => { setActiveMes(mes); setExpandedRecIndex(0); }}
                       className={`flex-1 py-3.5 px-4 rounded-xl text-xs font-black tracking-wider transition-all uppercase ${
                         activeMes === mes
                           ? 'bg-emerald-500 text-neutral-950 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
@@ -499,45 +575,309 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                     <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
                     <ListChecks className="w-6 h-6 text-emerald-500 dark:text-emerald-400" />
                     <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                      Productos a incorporar en el Mix Comercial
+                      Productos a incorporar
                     </h4>
                   </div>
                   
                   <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
-                    <table className="w-full text-left border-collapse table-auto md:table-fixed">
+                    <table className="w-full text-left border-collapse table-auto">
                       <thead>
                         <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Producto</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/5">Probabilidad</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/5 hidden sm:table-cell">Modelo</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Producto</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-32">Probabilidad</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase hidden sm:table-cell">Modelo</th>
                           <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Justificación Comercial</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-neutral-950/40 divide-y divide-neutral-200 dark:divide-neutral-800/60">
-                        {(proyeccionData.proyecciones[activeMes] || []).map((rec, i) => (
-                          <tr key={i} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors group">
-                            <td className="p-3 md:p-4 font-bold text-neutral-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-xs md:text-sm break-words">
-                              {rec.producto}
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <span className="text-[10px] md:text-xs font-black px-2 py-1 md:px-3 md:py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
-                                {rec.probabilidad}%
-                              </span>
-                            </td>
-                            <td className="p-3 md:p-4 hidden sm:table-cell">
-                              <span className="text-[9px] md:text-[10px] font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm">
-                                {rec.motor}
-                              </span>
-                            </td>
-                            <td className="p-3 md:p-4 text-xs md:text-sm text-neutral-700 dark:text-neutral-300 leading-snug md:leading-relaxed font-medium break-words">
-                              {rec.justificacion}
-                            </td>
-                          </tr>
-                        ))}
+                        {(proyeccionData.proyecciones[activeMes] || []).map((rec, i) => {
+                          const isExpanded = expandedRecIndex === i
+                          return (
+                            <React.Fragment key={`rec-wrapper-${i}`}>
+                              <tr
+                                onClick={() => setExpandedRecIndex(isExpanded ? null : i)}
+                                className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors group cursor-pointer border-b border-neutral-200 dark:border-neutral-800/60"
+                              >
+                                <td className="p-3 md:p-4 font-bold text-neutral-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-xs md:text-sm break-words">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-neutral-400 dark:text-neutral-600 font-mono text-[9px] select-none">
+                                      {isExpanded ? '▼' : '▶'}
+                                    </span>
+                                    <span>{rec.producto}</span>
+                                  </div>
+                                </td>
+                                <td className="p-3 md:p-4">
+                                  <span className="text-[10px] md:text-xs font-black px-2 py-1 md:px-3 md:py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                                    {rec.probabilidad}%
+                                  </span>
+                                </td>
+                                <td className="p-3 md:p-4 hidden sm:table-cell">
+                                  <span className="text-[9px] md:text-[10px] font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm whitespace-nowrap">
+                                    {rec.motor}
+                                  </span>
+                                </td>
+                                <td className="p-3 md:p-4 text-xs md:text-sm text-neutral-700 dark:text-neutral-300 leading-snug md:leading-relaxed font-medium break-words">
+                                  <div className="flex justify-between items-center">
+                                    <span className="line-clamp-2 md:line-clamp-none">{rec.justificacion}</span>
+                                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-bold ml-4 underline flex-shrink-0 select-none">
+                                      {isExpanded ? 'Ocultar' : 'Ver detalles'}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr className="bg-neutral-50/50 dark:bg-neutral-900/40">
+                                  <td colSpan={4} className="p-6 border-b border-neutral-200 dark:border-neutral-800/60">
+                                    <div className="space-y-6 animate-fadeIn">
+                                      <div className="border-l-4 border-emerald-500 pl-4 py-1">
+                                        <h5 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                                          Explicacion paso a paso del analisis del motor
+                                        </h5>
+                                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider mt-1">
+                                          Modelo Activo: {rec.modelo_oculto || 'IA Hibrida'} | Detonante de Inferencia: {rec.item_atencion || 'N/A'}
+                                        </p>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        {/* PASO 1: ENTRADA */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 1: Secuencia de Entrada
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              {rec.detalles_pasos?.input || 'Analizando secuencia de compras del cliente (hasta 10 compras mas recientes).'}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 2: EMBEDDING */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 2: Capa de Embedding
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              Conversion de identificadores de producto (vector 64D), cliente (vector 32D) y mes (vector 16D) en un espacio continuo densificado de 112D.
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 3: GRU */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 3: Red Neuronal GRU
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              Procesamiento secuencial con 2 capas y 128 neuronas recurrentes para recordar la dependencia y el orden cronologico de las compras.
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 4: ATENCION */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 4: Mecanismo de Atencion
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              {rec.modelo_oculto === 'Atención-GRU' ? (
+                                                `La capa de atencion detecto que '${rec.item_atencion}' fue el detonante principal con un peso de relevancia del ${rec.peso_atencion}%.`
+                                              ) : (
+                                                `Motor ${rec.modelo_oculto || 'hibrido'} activo. Se evaluo la influencia general de la cartera de compras en el espacio latente.`
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 5: FILTROS */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 5: Filtros de Negocio
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              {rec.detalles_pasos?.filtro || 'Validando stock en la zona comercial y previniendo el riesgo de canibalizacion terapeutica.'}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 6: CONTENIDO */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 6: Similitud por Contenido
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              {rec.modelo_oculto === 'Contenido (Nuevo Lanzamiento)' ? (
+                                                `Se busco compatibilidad clinica y terapeutica del nuevo lanzamiento por metadatos (TF-IDF y coseno de similitud) contra '${rec.item_atencion}'.`
+                                              ) : (
+                                                'Paso omitido. El producto sugerido es un producto existente en el catalogo con historial transaccional.'
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 7: PROYECCION */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2">
+                                              Paso 7: Horizonte Temporal
+                                            </div>
+                                            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                                              {activeMes === 'Mes Actual (En Curso)' ? (
+                                                'Inferencia directa generada a partir del historial real confirmado de compras (Confianza Alta).'
+                                              ) : (
+                                                `Escenario autorregresivo para ${activeMes}. Asume que se cerraron con exito las ventas de los meses anteriores.`
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* PASO 8: ARGUMENTO */}
+                                        <div className="bg-white dark:bg-neutral-950 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm border-l-2 border-l-emerald-500">
+                                          <div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
+                                              Paso 8: Discurso Comercial XAI
+                                            </div>
+                                            <p className="text-xs text-neutral-800 dark:text-neutral-200 leading-relaxed font-bold">
+                                              {rec.detalles_pasos?.xai || rec.justificacion}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          )
+                        })}
                         {(proyeccionData.proyecciones[activeMes] || []).length === 0 && (
                           <tr>
                             <td colSpan={4} className="p-8 text-center bg-neutral-50 dark:bg-neutral-900/40 text-neutral-500 dark:text-neutral-400 font-medium">
                               No hay sugerencias que superen los umbrales de seguridad para este período.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* COMPARATIVA DE PRODUCTOS DEL MIX RECOMENDADO */}
+                <div className="w-full space-y-6 animate-fadeIn">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="w-2 h-6 bg-amber-500 rounded-sm shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+                    <svg className="w-6 h-6 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
+                      Comparativa Analítica
+                    </h4>
+                  </div>
+
+                  <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
+                    <table className="w-full text-left border-collapse table-auto">
+                      <thead>
+                        <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Producto Sugerido</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase text-center w-32">Probabilidad</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Detonador / Ancla</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase text-center w-28">Peso Relevancia</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Estrategia Asignada</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-neutral-950/40 divide-y divide-neutral-200 dark:divide-neutral-800/60">
+                        {(proyeccionData.proyecciones[activeMes] || []).map((rec, idx) => (
+                          <tr key={`comp-${idx}`} className="hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors">
+                            <td className="p-3 md:p-4 font-bold text-neutral-950 dark:text-white text-xs md:text-sm">
+                              {rec.producto}
+                            </td>
+                            <td className="p-3 md:p-4 text-center">
+                              <span className="text-[10px] md:text-xs font-black px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                                {rec.probabilidad}%
+                              </span>
+                            </td>
+                            <td className="p-3 md:p-4 font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                              {rec.item_atencion || 'N/A'}
+                            </td>
+                            <td className="p-3 md:p-4 text-center">
+                              <span className="text-xs font-mono font-bold text-neutral-800 dark:text-neutral-200">
+                                {rec.peso_atencion}%
+                              </span>
+                            </td>
+                            <td className="p-3 md:p-4">
+                              <span className="text-[9px] md:text-[10px] font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm whitespace-nowrap">
+                                {rec.motor}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* HISTORIAL DE CONSUMO TRANSACCIONAL */}
+                <div className="w-full space-y-6">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                    <svg className="w-6 h-6 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
+                      Historial de Consumo Comprador
+                    </h4>
+                  </div>
+
+                  <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
+                    <table className="w-full text-left border-collapse table-auto">
+                      <thead>
+                        <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-16">Secuencia</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Fármaco / Producto Adquirido</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Mes</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-28">Cantidad</th>
+                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/3">Estado Secuencial</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-neutral-950/40 divide-y divide-neutral-200 dark:divide-neutral-800/60">
+                        {clientHistory.map((row, idx) => {
+                          const isLast = idx === clientHistory.length - 1;
+                          return (
+                            <tr key={`hist-${idx}`} className="hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors">
+                              <td className="p-3 md:p-4 font-mono text-xs text-neutral-500">
+                                #{idx + 1}
+                              </td>
+                              <td className="p-3 md:p-4 font-bold text-neutral-900 dark:text-white text-xs md:text-sm">
+                                {row.producto}
+                              </td>
+                              <td className="p-3 md:p-4 text-xs font-semibold text-neutral-700 dark:text-neutral-300 uppercase">
+                                {row.mes}
+                              </td>
+                              <td className="p-3 md:p-4 text-xs font-bold text-neutral-900 dark:text-white">
+                                {row.cantidad} uds
+                              </td>
+                              <td className="p-3 md:p-4">
+                                {isLast ? (
+                                  <span className="text-[10px] font-black uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-md shadow-sm">
+                                    Última Compra (Detonante de Inferencia)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">
+                                    Adquisición Previa
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {clientHistory.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="p-8 text-center bg-neutral-50 dark:bg-neutral-900/40 text-neutral-500 dark:text-neutral-400 font-medium">
+                              No hay historial transaccional registrado para esta institución.
                             </td>
                           </tr>
                         )}
@@ -553,7 +893,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                       <div className="w-2 h-6 bg-blue-500 rounded-sm shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
                       <Network className="w-6 h-6 text-blue-500 dark:text-blue-400" />
                       <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                        Grafo Multipartito Explicable (XAI)
+                        Grafo (XAI)
                       </h4>
                     </div>
                   </div>
@@ -561,8 +901,8 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   <div className="relative rounded-3xl bg-white dark:bg-neutral-950/80 border border-neutral-200 dark:border-neutral-800/80 overflow-hidden shadow-2xl p-4 min-h-[500px] flex items-center justify-center transition-colors">
                     {/* Floating XAI Label (Absolutely positioned to guarantee ZERO layout shifts) */}
                     <div className="absolute top-6 right-6 z-20 pointer-events-none">
-                      <span className={`text-xs font-black tracking-widest uppercase bg-neutral-100/90 dark:bg-neutral-900/90 backdrop-blur-md text-emerald-650 dark:text-emerald-400 border border-neutral-200 dark:border-emerald-500/20 px-4 py-2 rounded-full shadow-2xl transition-all duration-300 ${hoveredEnlace ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-2 scale-95'}`}>
-                        {hoveredEnlace ? hoveredEnlace.label : ''}
+                      <span className={`text-xs font-black tracking-widest uppercase bg-neutral-100/90 dark:bg-neutral-900/90 backdrop-blur-md text-emerald-600 dark:text-emerald-400 border border-neutral-200 dark:border-neutral-800 px-4 py-2 rounded-full shadow-2xl transition-all duration-300 whitespace-nowrap ${hoveredEnlace ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-2 scale-95'}`}>
+                        {lastActiveLabel}
                       </span>
                     </div>
 
@@ -607,7 +947,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                               strokeWidth={16}
                               className="cursor-crosshair"
                               onMouseEnter={() => setHoveredEnlace(enlace)}
-                              onMouseLeave={() => setHoveredEnlace(null)}
+                              onMouseLeave={() => setHoveredEnlace(prev => prev === enlace ? null : prev)}
                             />
                           </g>
                         )
@@ -636,14 +976,8 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                               fill={nodeColor}
                               stroke={strokeColor}
                               strokeWidth="2"
-                              className="transition-transform duration-300 shadow-2xl"
+                              className="transition-transform duration-300 shadow-2xl hover:scale-125 cursor-pointer"
                               style={{ transformOrigin: `${nodo.x}px ${nodo.y}px` }}
-                              onMouseEnter={(e) => {
-                                (e.target as any).style.transform = 'scale(1.2)'
-                              }}
-                              onMouseLeave={(e) => {
-                                (e.target as any).style.transform = 'scale(1)'
-                              }}
                             />
                             <text
                               x={nodo.x}
@@ -904,6 +1238,51 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 )}
               </button>
             </form>
+
+            {/* LISTA DE NUEVOS LANZAMIENTOS REGISTRADOS */}
+            <div className="mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
+                  Lanzamientos Registrados
+                </h4>
+              </div>
+
+              {loadingProducts ? (
+                <div className="flex justify-center items-center py-12">
+                  <svg className="animate-spin h-8 w-8 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </div>
+              ) : registeredProducts.length === 0 ? (
+                <div className="text-center p-8 bg-neutral-50 dark:bg-neutral-900/40 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium text-sm">
+                  No hay nuevos lanzamientos registrados en el sistema aun.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-xl bg-white dark:bg-neutral-950/40">
+                  <table className="w-full text-left border-collapse table-auto">
+                    <thead>
+                      <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
+                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Nombre</th>
+                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/5">Sub-Familia</th>
+                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/6">Formato</th>
+                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Composicion</th>
+                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Indicacion</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/60 bg-white dark:bg-neutral-950/40">
+                      {registeredProducts.map((p, idx) => (
+                        <tr key={idx} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors text-xs text-neutral-700 dark:text-neutral-300 font-medium">
+                          <td className="p-3 font-bold text-neutral-950 dark:text-white uppercase">{p.nombre}</td>
+                          <td className="p-3">{p.sub_familia}</td>
+                          <td className="p-3 font-semibold text-[10px] uppercase tracking-wider">{p.formato}</td>
+                          <td className="p-3 break-words">{p.composicion}</td>
+                          <td className="p-3 break-words leading-relaxed">{p.indicacion}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
