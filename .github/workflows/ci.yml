@@ -120,6 +120,10 @@ jobs:
             echo "Reiniciando backend en PM2 (sophia-backend)..."
             pm2 reload sophia-backend --update-env || pm2 restart sophia-backend --update-env
             
+            # --- 1.5. REINICIAR MICROSERVICIO FASTAPI ---
+            echo "Reiniciando FastAPI en PM2 (sophia-fastapi)..."
+            pm2 reload sophia-fastapi --update-env || pm2 restart sophia-fastapi --update-env
+            
             # --- 2. ACTUALIZAR, COMPILAR Y REINICIAR FRONTEND ---
             echo "Actualizando Frontend (Next.js)..."
             cd /var/www/g2-diegoleo/frontend
