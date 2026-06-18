@@ -1,0 +1,18 @@
+{
+  "SPLASH TEARS": {
+    "sub_familia": "Lubricante ocular",
+    "mecanismo": "lubricante ocular condroit[in sulfato de sodio, hipromelosa lubricante hidratante lagrimal ocular aivio del ojo seco",
+    "indicacion": "Aivio del ojo seco",
+    "composicion": "Condroit[in Sulfato de Sodio, Hipromelosa",
+    "formato": "Gotas",
+    "es_nuevo": true
+  },
+  "SPLASH TEARS PF": {
+    "sub_familia": "Lubricante ocular",
+    "mecanismo": "lubricante ocular hipromelosa lubricante hidratante lagrimal ocular alivio del ojo seco",
+    "indicacion": "Alivio del ojo seco",
+    "composicion": "Hipromelosa",
+    "formato": "Ungüento",
+    "es_nuevo": true
+  }
+}
