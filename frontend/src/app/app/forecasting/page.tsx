@@ -88,7 +88,7 @@ export default function Forecasting() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-neutral-900 dark:text-white mb-2">Predicción de Demanda</h1>
-        <p className="text-neutral-500 dark:text-neutral-400">Predicción de demanda a 3 meses con LSTM y análisis de tendencias estacionales</p>
+        <p className="text-neutral-500 dark:text-neutral-400">Predicción de demanda a 3 meses con Attention-Gru y análisis de tendencias estacionales</p>
       </div>
 
       {/* Search Bar */}
@@ -154,7 +154,7 @@ export default function Forecasting() {
 
         {/* Forecast Chart */}
         <div className="mt-8">
-          <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-4">Gráfico de Tendencia Estacional (LSTM)</h3>
+          <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-4">Gráfico de Tendencia Estacional (Attention-Gru)</h3>
           <ResponsiveContainer width="100%" height={350}>
             <AreaChart
               data={forecastData}
@@ -214,7 +214,7 @@ export default function Forecasting() {
                 strokeDasharray="5 5"
                 fillOpacity={1}
                 fill="url(#colorForecast-forecast)"
-                name="Pronóstico LSTM"
+                name="Pronóstico Attention-Gru"
                 connectNulls={false}
                 isAnimationActive={false}
                 dot={false}

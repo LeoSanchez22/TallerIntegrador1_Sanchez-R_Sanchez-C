@@ -18,11 +18,11 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=DIRECTORIO_RAIZ / ".env")
 
 try:
-    from predict import predecir
-    from content_recommender import registrar_producto_nuevo
+    from predict import predecir, cargar_compras_supabase
+    from content_recommender import registrar_producto_nuevo, MotorContenido
 except ImportError:
-    from src_py.predict import predecir
-    from src_py.content_recommender import registrar_producto_nuevo
+    from src_py.predict import predecir, cargar_compras_supabase
+    from src_py.content_recommender import registrar_producto_nuevo, MotorContenido
 
 app = FastAPI(title="Laboratorios Sophia AI Microservice") 
 
@@ -129,6 +129,29 @@ def registrar_producto(prod: ProductoNuevoSchema):
         return {"success": True, "producto": meta_guardada}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al registrar producto: {str(e)}")
+
+@app.get("/api/productos/similitud/{nombre}")
+def obtener_similitud_producto_nuevo(nombre: str):
+    try:
+        compras_ctx = cargar_compras_supabase()
+        if compras_ctx is None:
+            raise HTTPException(status_code=500, detail="Base de datos local no encontrada.")
+        
+        ruta_json = DIRECTORIO_SRC_PY / "data" / "productos_metadata.json"
+        motor = MotorContenido(compras_ctx, ruta_json)
+        
+        clave = nombre.upper().strip()
+        if clave not in motor.registro:
+            raise HTTPException(status_code=404, detail=f"Producto '{nombre}' no registrado.")
+            
+        df_sim = motor.tabla_similitud_producto_nuevo(clave)
+        if df_sim.empty:
+            return []
+            
+        result = df_sim.to_dict(orient="records")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener similitud: {str(e)}")
 
 @app.post("/api/train")
 def iniciar_entrenamiento(background_tasks: BackgroundTasks):

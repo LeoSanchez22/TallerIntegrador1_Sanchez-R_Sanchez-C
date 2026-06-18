@@ -63,7 +63,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-lg font-bold text-white mb-3">Predicción de Demanda</h3>
               <p className="text-sm text-neutral-400 leading-relaxed">
-                Análisis predictivo con modelos LSTM para forecasting de demanda a 3 meses, optimizando el abastecimiento y mitigando quiebres de stock.
+                Análisis predictivo con modelos Attention-Gru para forecasting de demanda a 3 meses, optimizando el abastecimiento y mitigando quiebres de stock.
               </p>
             </div>
           </div>

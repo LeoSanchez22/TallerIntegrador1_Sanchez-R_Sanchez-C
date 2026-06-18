@@ -23,14 +23,14 @@ export default function ModelPerformance({ modelSummary }: ModelPerformanceProps
           </div>
         </div>
 
-        {/* LSTM */}
+        {/* Attention-Gru */}
         <div className="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-lg border border-neutral-200 dark:border-neutral-800/40">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-neutral-500 dark:text-neutral-400 font-semibold">LSTM Forecast Accuracy</span>
-            <span className="text-sm font-bold text-neutral-900 dark:text-white">{modelSummary?.lstmAccuracy || 0}%</span>
+            <span className="text-sm text-neutral-500 dark:text-neutral-400 font-semibold">Attention-Gru Forecast Accuracy</span>
+            <span className="text-sm font-bold text-neutral-900 dark:text-white">{modelSummary?.attentionGruAccuracy || 0}%</span>
           </div>
           <div className="w-full bg-neutral-200 dark:bg-neutral-800 rounded-full h-2">
-            <div className="h-2 rounded-full bg-[#00B4D8]" style={{ width: `${modelSummary?.lstmAccuracy || 0}%` }}></div>
+            <div className="h-2 rounded-full bg-[#00B4D8]" style={{ width: `${modelSummary?.attentionGruAccuracy || 0}%` }}></div>
           </div>
         </div>
 
