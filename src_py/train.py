@@ -204,6 +204,19 @@ def preparar_datos(config):
     print("\n📂 Cargando datos...")
     compras = cargar_compras(config)
 
+    # =====================================================================
+    # 🌟 FIX CRÍTICO: SANITIZACIÓN DE TIPOS (Igual que en app.py)
+    # =====================================================================
+    # Forzamos a que SQLAlchemy/PostgreSQL no nos contamine los tensores
+    # con floats o strings, asegurando que el diccionario cliente2idx 
+    # se guarde con claves de tipo 'int' puro.
+    try:
+        compras['cliente_id'] = compras['cliente_id'].astype(int)
+        compras['producto_id'] = compras['producto_id'].astype(int)
+        compras['cantidad'] = compras['cantidad'].fillna(0).astype(int)
+    except Exception as e:
+        print(f"⚠️ Advertencia en casteo de tipos: {e}")
+
     # Detectar columna de cliente
     for col in ['cliente_id', 'cliente', 'Cliente']:
         if col in compras.columns:
@@ -232,7 +245,8 @@ def preparar_datos(config):
 
     # Crear mapa cliente → índice continuo
     clientes_unicos = sorted(compras[col_cliente_id].unique().tolist())
-    cliente2idx     = {c: i + 1 for i, c in enumerate(clientes_unicos)}  # 0 reservado para padding
+    # 🌟 Aquí aseguramos el int() adicional por precaución
+    cliente2idx     = {int(c): i + 1 for i, c in enumerate(clientes_unicos)}  # 0 reservado para padding
     num_clientes    = len(clientes_unicos) + 1
     num_items       = int(compras['producto_id'].max()) + 2
 

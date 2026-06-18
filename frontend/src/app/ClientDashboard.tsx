@@ -308,7 +308,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 <div className="flex items-center space-x-3 mb-6">
                   <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
                   <h4 className="text-lg font-black tracking-widest uppercase text-neutral-200">
-                    📋 Productos a incorporar en el Mix Comercial
+                    Productos a incorporar
                   </h4>
                 </div>
                 
@@ -361,7 +361,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   <div className="flex items-center space-x-3">
                     <div className="w-2 h-6 bg-blue-500 rounded-sm shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
                     <h4 className="text-lg font-black tracking-widest uppercase text-neutral-200">
-                      🗺️ Grafo Multipartito Explicable (XAI)
+                      Grafo (XAI)
                     </h4>
                   </div>
                   {hoveredEnlace && (

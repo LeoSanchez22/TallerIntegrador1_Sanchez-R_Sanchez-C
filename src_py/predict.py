@@ -21,9 +21,9 @@ from src_py.content_recommender import MotorContenido, inyectar_candidatos_nuevo
 load_dotenv(dotenv_path=DIRECTORIO_RAIZ / ".env")
 
 # Configuración de rutas
-DATA_DIR = DIRECTORIO_RAIZ / "data" / "intermediate"
-MODEL_PATH = DIRECTORIO_RAIZ / "models" / "modelo_sophia_final.pt"
-JSON_PATH = DIRECTORIO_RAIZ / "data" / "productos_metadata.json"
+DATA_DIR = Path(__file__).resolve().parent / "data" / "intermediate"
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "modelo_sophia_final.pt"
+JSON_PATH = Path(__file__).resolve().parent / "data" / "productos_metadata.json"
 
 # Negocio
 INVENTARIO_REGIONAL = {
@@ -40,7 +40,7 @@ def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual):
         return False, "Riesgo de canibalización."
     return True, "Aprobado"
 
-def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, item_foco=None, peso=None):
+def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, item_foco=None, peso=None, es_autorregresivo=False):
     # Intentar Gemini si hay API Key
     api_key = os.environ.get("GEMINI_API_KEY")
     if api_key:
@@ -60,6 +60,9 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, hori
             else:
                 logica_xai = f"El modelo detectó una 'Afinidad NCF'. Evaluando el Espacio Latente, encontró que clínicas con un perfil estructural idéntico a esta, que ya consumen '{historial_base}', tienen una probabilidad muy alta de adoptar '{producto_sugerido}'."
 
+            if es_autorregresivo:
+                logica_xai += f" IMPORTANTE: Esta es una proyección autorregresiva para el {mes_texto}. El sistema está asumiendo que las ventas sugeridas en los meses previos fueron cerradas con éxito, lo que obliga al algoritmo a mutar su sugerencia hacia una estrategia de expansión de catálogo para diversificar."
+
             prompt = f"""
             Eres el motor de Inteligencia Artificial Explicable (XAI) de Laboratorios Sophia.
             Tu tarea es traducir la lógica matemática de nuestros modelos en una justificación clínica y comercial de EXACTAMENTE 2 a 3 líneas para el visitador médico.
@@ -74,24 +77,29 @@ def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, hori
             1. GENERACIÓN DINÁMICA: Escribe un argumento de ventas basándote ESTRICTAMENTE en la 'Razón Matemática a Explicar'. Explícale al vendedor por qué el sistema hizo esta conexión.
             2. SI ES CAUSALIDAD GRU: Menciona la dependencia temporal o el ciclo de reposición clínico.
             3. SI ES AFINIDAD NCF: Menciona el perfil de la clínica, su similitud con otras instituciones y la sinergia médica entre ambos productos, ignorando el tiempo.
-            4. OBLIGATORIO: Menciona textualmente '{producto_sugerido}' y '{historial_base}'.
-            5. TONO: Nivel Ingeniería a Negocios. Persuasivo, sofisticado.
+            4. SI ES AUTORREGRESIVO (Mes futuro): Explica cómo esta sugerencia es un paso estratégico de expansión asumiendo el éxito de las ventas de los meses anteriores.
+            5. OBLIGATORIO: Menciona textualmente '{producto_sugerido}' y '{historial_base}'.
+            6. TONO: Nivel Ingeniería a Negocios. Persuasivo, sofisticado, sin saludos ni redundancias.
+            7. SIN EMOJIS: Esta estrictamente prohibido incluir emojis en tu respuesta. No utilices ningun tipo de emoticono o caracter especial de emoji.
             """
             model = genai.GenerativeModel('gemini-1.5-flash', generation_config={"temperature": 0.6})
             respuesta = model.generate_content(prompt)
-            return respuesta.text.strip()
+            # Sanitizar posibles emojis remanentes del modelo
+            clean_text = respuesta.text.strip().replace("🤖", "").replace("💊", "").replace("🚀", "").replace("💡", "").replace("⭐", "").replace("🔄", "").replace("🆕", "")
+            return clean_text
         except Exception:
             pass
 
-    # Explicación estática de respaldo
+    # Explicación estática de respaldo (sin emojis)
+    suffix = " (proyección autorregresiva)" if es_autorregresivo else ""
     if motor_origen == 'Atención-GRU':
-        return f"Reposición Sugerida: Ciclo de compra detecta demanda inminente para {producto_sugerido} basado en consumo de {item_foco} ({peso}% relevancia)."
+        return f"Reposición Sugerida: Ciclo de compra detecta demanda inminente para {producto_sugerido} basado en consumo de {item_foco} ({peso}% relevancia){suffix}."
     elif motor_origen == 'Cold Start':
-        return f"Éxito Local: {producto_sugerido} es uno de los productos más solicitados en tu zona comercial."
+        return f"Exito Local: {producto_sugerido} es uno de los productos mas solicitados en tu zona comercial{suffix}."
     elif motor_origen == 'Contenido (Nuevo Lanzamiento)':
-        return f"Nuevo Lanzamiento: Recomendado por afinidad terapéutica de ingredientes activos con {item_foco}."
+        return f"Nuevo Lanzamiento: Recomendado por afinidad terapeutica de ingredientes activos con {item_foco}{suffix}."
     else:
-         return f"Oportunidad Cross-Selling: Clínicas con perfil de compra similar al tuyo que adquieren {item_foco} también consumen {producto_sugerido}."
+         return f"Oportunidad Cross-Selling: Clinicas con perfil de compra similar al tuyo que adquieren {item_foco} tambien consumen {producto_sugerido}{suffix}."
 
 def cargar_compras_supabase():
     env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -189,8 +197,8 @@ def predecir(cliente_id):
     es_cold_start = len(historial_ids) < 3
     cli_idx_tensor = torch.tensor([cliente2idx.get(cliente_id, 0)], dtype=torch.long)
     
-    # 3 Meses de proyecciones
-    horizonte_meses = ["Mes +1 (Próximo Mes)", "Mes +2 (Siguiente Mes)", "Mes +3 (Proyección Trimestral)"]
+    # 3 Meses de proyecciones (Inicia en Mes Actual en Curso)
+    horizonte_meses = ["Mes Actual (En Curso)", "Mes +1 (Próximo Mes)", "Mes +2 (Proyección)"]
     proyecciones = {}
     historial_simulado = list(historial_nombres)
     historial_ids_simulado = list(historial_ids)
@@ -198,7 +206,8 @@ def predecir(cliente_id):
     mes_actual = int(pd.Timestamp.now().month)
     
     for paso, mes_nombre in enumerate(horizonte_meses):
-        mes_prediccion = ((mes_actual + paso) % 12) + 1
+        # Corrección del paso para que el paso 0 evalúe el mes actual
+        mes_prediccion = ((mes_actual + paso - 1) % 12) + 1
         mes_tensor = torch.tensor([mes_prediccion], dtype=torch.long)
         
         if es_cold_start:
@@ -269,25 +278,69 @@ def predecir(cliente_id):
             if not es_seguro:
                 continue
                 
+            # La proyección es autorregresiva a partir del segundo mes (paso > 0)
+            es_autoreg = (paso > 0)
             explicacion = generar_explicacion(
                 nombre_prod, historial_simulado, motor, mes_nombre,
                 item_foco = item_foco_nombre,
-                peso = peso_max_pct if motor == 'Atención-GRU' else 100
+                peso = peso_max_pct if motor == 'Atención-GRU' else 100,
+                es_autorregresivo = es_autoreg
             )
             
-            # Mapear motor a la estrategia comercial descriptiva
+            # Mapear motor a la estrategia comercial descriptiva sin emojis
             estrategia_map = {
-                'Atención-GRU': "Reposición Sugerida (Ciclo de Compra)",
-                'Cold Start':   "Éxito Local (Top Ventas de la Zona)",
-                'NCF':          "Oportunidad de Expansión (Cross-Selling)",
-                'Contenido (Nuevo Lanzamiento)': "Nuevo Lanzamiento (Afinidad Terapéutica)",
+                'Atención-GRU': "Reposicion Sugerida (Ciclo de Compra)",
+                'Cold Start':   "Exito Local (Top Ventas de la Zona)",
+                'NCF':          "Oportunidad de Expansion (Cross-Selling)",
+                'Contenido (Nuevo Lanzamiento)': "Nuevo Lanzamiento (Afinidad Terapeutica)",
             }
-            
+
+            sub_familia_com = ""
+            formato_com = ""
+            if motor == 'Contenido (Nuevo Lanzamiento)' and motor_contenido:
+                prod_meta = motor_contenido.registro.get(nombre_prod.upper().strip(), {})
+                sub_familia_com = prod_meta.get("sub_familia", "")
+                formato_com = prod_meta.get("formato", "")
+
+            # Explicación paso a paso de por qué se recomienda (detallada y clara, sin emojis)
+            # Paso 1: Datos de entrada (historial)
+            if es_cold_start:
+                paso_input = f"El cliente no tiene un historial de compras suficiente (menos de 3 compras). Por lo tanto, se analizo el comportamiento de consumo general de la zona comercial '{zona_activa}'."
+            else:
+                paso_input = f"Se leyeron las ultimas compras registradas del cliente. A partir de esta secuencia, el algoritmo identifico que el principal producto detonante de interes es '{item_foco_nombre}'."
+
+            # Paso 2: Calculo del modelo
+            if motor == 'Atención-GRU':
+                paso_modelo = f"La red neuronal recurrente GRU analizo el orden y la secuencia temporal de las compras anteriores. La capa de atencion matematica asigno un peso de relevancia del {peso_max_pct}% a '{item_foco_nombre}', deduciendo que el ciclo natural de reposicion de '{nombre_prod}' esta por cumplirse."
+            elif motor == 'NCF':
+                paso_modelo = f"El modelo de Filtrado Colaborativo Neural (NCF) proyecto al cliente en un espacio latente de comportamiento. Encontro coincidencia estructural con otros clientes que compran '{item_foco_nombre}', prediciendo que existe una afinidad de compra muy alta para '{nombre_prod}'."
+            elif motor == 'Cold Start':
+                paso_modelo = f"Se utilizo la regla de Popularidad Zonal. El producto '{nombre_prod}' es uno de los productos mas vendidos en la zona '{zona_activa}' entre clientes con perfiles de compra similares."
+            elif motor == 'Contenido (Nuevo Lanzamiento)':
+                paso_modelo = f"El motor de contenido utilizo la formula TF-IDF y similitud coseno sobre los metadatos clinicos. Identifico afinidad terapeutica entre el nuevo producto '{nombre_prod}' y el consumido '{item_foco_nombre}', dado que comparten la sub-familia '{sub_familia_com}' y el formato '{formato_com}'."
+            else:
+                paso_modelo = f"El algoritmo determino una probabilidad de compra basada en la afinidad del perfil comercial."
+
+            # Paso 3: Validacion de seguridad y stock
+            paso_filtro = f"El modulo de reglas de negocio verifico que '{nombre_prod}' cuenta con stock suficiente en la zona '{zona_activa}' y confirmo que no existe riesgo de canibalizacion con '{item_foco_nombre}' u otros productos del cliente."
+
+            # Paso 4: Generacion comercial (XAI)
+            paso_xai = f"El motor generativo tradujo la afinidad del modelo en el argumento de ventas: '{explicacion}'."
+
             recomendaciones_mes.append({
                 "producto": nombre_prod,
                 "probabilidad": round(float(score_raw) * 100, 1),
                 "motor": estrategia_map.get(motor, motor),
-                "justificacion": explicacion
+                "modelo_oculto": motor,
+                "justificacion": explicacion,
+                "item_atencion": item_foco_nombre,
+                "peso_atencion": peso_max_pct if motor == 'Atención-GRU' else 100,
+                "detalles_pasos": {
+                    "input": paso_input,
+                    "modelo": paso_modelo,
+                    "filtro": paso_filtro,
+                    "xai": paso_xai
+                }
             })
             
             aprobadas += 1
@@ -309,7 +362,7 @@ def predecir(cliente_id):
     recs_mes1 = proyecciones.get(horizonte_meses[0], [])
     for rec in recs_mes1:
         if not es_cold_start:
-            items_a_mostrar.add(item_foco_nombre)
+            items_a_mostrar.add(rec.get("item_atencion", "Historial Base"))
         for item in historial_nombres:
             if item in rec["justificacion"]:
                 items_a_mostrar.add(item)
@@ -327,10 +380,55 @@ def predecir(cliente_id):
             if item in rec["justificacion"]:
                 enlaces.append({"source": item, "target": rec["producto"], "type": "apriori", "label": "Afinidad"})
 
+    historial_detallado = []
+    nombres_meses = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO', 
+                     7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
+    for _, row in historial_cliente.iterrows():
+        p_name = mapa_productos.get(row['producto_id'], str(row['producto_id']))
+        
+        # Resolver mes de forma robusta como en app.py
+        mes_val = ""
+        if 'mes_nombre' in row and pd.notna(row['mes_nombre']) and str(row['mes_nombre']).strip() and str(row['mes_nombre']).strip().lower() != 'nan':
+            mes_val = str(row['mes_nombre']).strip().upper()
+        elif 'mes_abbr' in row and pd.notna(row['mes_abbr']) and str(row['mes_abbr']).strip() and str(row['mes_abbr']).strip().lower() != 'nan':
+            mes_val = str(row['mes_abbr']).strip().upper()
+        else:
+            mes_num = None
+            if 'mes_num' in row and pd.notna(row['mes_num']) and str(row['mes_num']).strip().lower() != 'nan':
+                try:
+                    mes_num = int(float(row['mes_num']))
+                except Exception:
+                    pass
+            elif 'fecha' in row and pd.notna(row['fecha']) and str(row['fecha']).strip().lower() != 'nan':
+                try:
+                    mes_num = pd.to_datetime(row['fecha']).month
+                except Exception:
+                    pass
+            
+            if mes_num in nombres_meses:
+                mes_val = nombres_meses[mes_num]
+            else:
+                mes_val = f"MES {mes_num}" if mes_num else "N/D"
+                
+        # Resolver cantidad de forma robusta
+        cantidad_val = 1
+        if 'cantidad' in row and pd.notna(row['cantidad']) and str(row['cantidad']).strip().lower() != 'nan':
+            try:
+                cantidad_val = int(float(row['cantidad']))
+            except Exception:
+                pass
+                
+        historial_detallado.append({
+            "producto": p_name,
+            "mes": mes_val,
+            "cantidad": cantidad_val
+        })
+
     return {
         "clienteId": cliente_id,
         "zona": zona_activa,
         "historial": historial_nombres,
+        "historial_detallado": historial_detallado,
         "proyecciones": proyecciones,
         "grafo": {"nodos": nodos, "enlaces": enlaces}
     }

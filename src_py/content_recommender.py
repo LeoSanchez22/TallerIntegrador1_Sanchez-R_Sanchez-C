@@ -169,7 +169,7 @@ SUBFAMILIAS = [
 ]
 FORMATOS = ["Gotas", "Ungüento", "Gel", "Suspensión", "Emulsión", "Gotas monodosis"]
 
-METADATA_JSON_PATH = Path("data/productos_metadata.json")
+METADATA_JSON_PATH = Path(__file__).resolve().parent / "data" / "productos_metadata.json"
 
 
 # =====================================================================

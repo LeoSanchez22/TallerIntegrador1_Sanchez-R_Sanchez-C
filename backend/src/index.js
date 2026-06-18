@@ -239,6 +239,41 @@ app.get('/api/proyeccion/:cliente_id', async (c) => {
   })
 })
 
+// Endpoint para obtener la lista de nuevos lanzamientos
+app.get('/api/productos/nuevos', async (c) => {
+  // 1. Intentar llamar a FastAPI
+  try {
+    const response = await fetch(`${FASTAPI_URL}/api/productos/nuevos`)
+    if (response.ok) {
+      const data = await response.json()
+      return c.json(data)
+    }
+  } catch (err) {
+    console.log(`[HONO API] FastAPI /api/productos/nuevos offline. Corriendo fallback de archivo...`)
+  }
+
+  // 2. Fallback: Leer archivo de metadatos directamente
+  try {
+    const rootPath = path.resolve(__dirname, '../../')
+    const rutaJson = path.join(rootPath, 'src_py/data/productos_metadata.json')
+    if (fs.existsSync(rutaJson)) {
+      const content = await fs.promises.readFile(rutaJson, 'utf-8')
+      const data = JSON.parse(content)
+      const lista = Object.keys(data).map(nombre => ({
+        nombre,
+        sub_familia: data[nombre].sub_familia,
+        indicacion: data[nombre].indicacion,
+        composicion: data[nombre].composicion,
+        formato: data[nombre].formato,
+      }))
+      return c.json(lista)
+    }
+    return c.json([])
+  } catch (err) {
+    return c.json({ error: "No se pudieron obtener los productos nuevos desde el archivo", details: err.message }, 500)
+  }
+})
+
 // Endpoint para registrar un nuevo producto (Nuevos Lanzamientos)
 app.post('/api/productos/registrar', async (c) => {
   const body = await c.req.json()
