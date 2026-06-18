@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import torch
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -26,18 +27,40 @@ MODEL_PATH = Path(__file__).resolve().parent / "models" / "modelo_sophia_final.p
 JSON_PATH = Path(__file__).resolve().parent / "data" / "productos_metadata.json"
 
 # Negocio
-INVENTARIO_REGIONAL = {
-    'PHARMA - N2': ['ZEBESTEN', 'DUSTALOX'],
-    'PHARMA - N1': ['LAGRICEL'],
-    'MULTI-ZONA': []
-}
+def obtener_quiebres_zona(zona, compras_df):
+    col_zona = next((c for c in ['vendedor', 'zona'] if c in compras_df.columns), 'zona')
+    cols = compras_df.columns.tolist()
+    if 'sin_stock' in cols:
+        df_quiebre = compras_df[
+            (compras_df[col_zona] == zona) & (compras_df['sin_stock'] == True)
+        ]['producto'].unique().tolist()
+    elif 'stock' in cols:
+        df_quiebre = compras_df[
+            (compras_df[col_zona] == zona) & (compras_df['stock'] == 0)
+        ]['producto'].unique().tolist()
+    else:
+        df_quiebre = []
+    return df_quiebre
 
-def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual):
-    quiebres = INVENTARIO_REGIONAL.get(zona_actual, [])
+def obtener_pares_canibalizacion(mapa_productos):
+    pares = []
+    nombres = list(mapa_productos.values())
+    for nombre in nombres:
+        base = nombre.replace(' PF', '').replace(' PLUS', '').strip()
+        if base != nombre and base in nombres:
+            pares.append((base, nombre))   # (producto_base, versión_premium)
+    return pares
+
+def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual, compras_df, mapa_productos):
+    # Filtro 1: quiebres de stock derivados de la BD (no hardcodeados)
+    quiebres = obtener_quiebres_zona(zona_actual, compras_df)
     if producto_sugerido in quiebres:
         return False, f"Sin stock en {zona_actual}."
-    if producto_sugerido == 'LAGRICEL PF' and 'LAGRICEL' in historial_cliente:
-        return False, "Riesgo de canibalización."
+    # Filtro 2: canibalización dinámica por pares detectados en el catálogo
+    pares = obtener_pares_canibalizacion(mapa_productos)
+    for base, premium in pares:
+        if producto_sugerido == premium and base in historial_cliente:
+            return False, f"Riesgo de canibalización: cliente ya consume {base}."
     return True, "Aprobado"
 
 def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, item_foco=None, peso=None, es_autorregresivo=False):
@@ -205,8 +228,161 @@ def predecir(cliente_id):
     
     mes_actual = int(pd.Timestamp.now().month)
     
+    # Inicializar xai_detalles dict
+    xai_detalles = {
+        "es_cold_start": es_cold_start,
+        "total_compras_historicas": len(historial_ids),
+        "productos_distintos": len(set(historial_ids)),
+        "motor_activo": "Cold Start (Popularidad Zonal)" if es_cold_start else "Attention-GRU + NCF",
+        "secuencia_entrada": [],
+        "secuencia_nombres_gru": "",
+        "pesos_atencion": [],
+        "gemelos_ncf_ui": [],
+        "productos_frecuentes_display": [],
+        "catalog_coverage": {
+            "pct_cubierto": 0.0,
+            "pct_restante": 100.0
+        },
+        "quiebres_zona": [],
+        "canibalizacion_activa": [],
+        "ranking_filtrado_mes0": [],
+        "hay_productos_nuevos": False,
+        "productos_nuevos_activos": [],
+        "recs_nuevos_cliente": [],
+        "telemetria": {
+            "hit_rate_5": "0.0%",
+            "ndcg_5": "0.000",
+            "pico_atencion": "0.0%",
+            "cobertura_catalogo": "0.0%"
+        }
+    }
+    
+    # 1. Secuencia de entrada (Paso 1)
+    for pos_idx, pid in enumerate(historial_ids[-10:]):
+        nombre = mapa_productos.get(pid, str(pid))
+        xai_detalles["secuencia_entrada"].append({
+            "posicion": f"t-{len(historial_ids[-10:]) - pos_idx}",
+            "id": int(pid),
+            "nombre": nombre
+        })
+        
+    # 2. Secuencia nombres GRU (Paso 3)
+    if len(historial_nombres) >= 2:
+        xai_detalles["secuencia_nombres_gru"] = " → ".join(historial_nombres[-6:])
+        
+    # 3. Quiebres de stock y canibalización (Paso 5)
+    quiebres_activos = obtener_quiebres_zona(zona_activa, compras_ctx)
+    xai_detalles["quiebres_zona"] = quiebres_activos
+    
+    pares_activos = obtener_pares_canibalizacion(mapa_productos)
+    xai_detalles["canibalizacion_activa"] = [f"{b} → {p}" for b, p in pares_activos]
+    
+    # 4. Motor de contenido (Paso 6)
+    if motor_contenido:
+        xai_detalles["hay_productos_nuevos"] = motor_contenido.hay_productos_nuevos()
+        xai_detalles["productos_nuevos_activos"] = motor_contenido.productos_nuevos()
+        
+    # 5. Diagnóstico de Viabilidad Nuevos Lanzamientos (Recomendación de nuevos por TF-IDF)
+    recs_nuevos_cliente = []
+    if motor_contenido and motor_contenido.hay_productos_nuevos() and not es_cold_start:
+        nuevos_recs = motor_contenido.recomendar_nuevos(historial_nombres)
+        for rn in nuevos_recs:
+            score_pct = rn['score'] * 100
+            diagnostico = "⭐⭐⭐ Altamente Recomendable" if score_pct >= 20 else "⭐⭐ Recomendable" if score_pct >= 10 else "⭐ Viabilidad Baja"
+            recs_nuevos_cliente.append({
+                "lanzamiento": rn['producto'],
+                "afinidad": f"{score_pct:.1f}%",
+                "producto_ancla": rn['similar_a'],
+                "diagnostico": diagnostico
+            })
+    xai_detalles["recs_nuevos_cliente"] = recs_nuevos_cliente
+
+    # 6. Calcular telemetría MLOps de backtesting dinámico
+    try:
+        clientes_zona = compras_ctx[compras_ctx[col_zona] == zona_activa]['cliente_id'].drop_duplicates().tolist()
+        semilla_dinamica = int(cliente_id) + len(zona_activa)
+        np.random.seed(semilla_dinamica)
+        
+        tamanho_muestra = min(20, len(clientes_zona))
+        clientes_muestra = np.random.choice(clientes_zona, tamanho_muestra, replace=False)
+
+        hr_total, ndcg_total, atencion_media = 0.0, 0.0, 0.0
+        productos_sugeridos_unicos = set()
+        casos_validos = 0
+
+        for cid in clientes_muestra:
+            hist_ids = compras_ctx[compras_ctx['cliente_id'] == int(cid)]['producto_id'].tolist()
+            if len(hist_ids) < 3:
+                continue
+
+            contexto_ids = hist_ids[:-1]
+            ground_truth_id = hist_ids[-1]
+            contexto_nombres = [mapa_productos[pid] for pid in contexto_ids if pid in mapa_productos]
+            
+            # Get mes of last purchase
+            mes_cliente = 1
+            if 'mes_num' in compras_ctx.columns:
+                mes_df = compras_ctx[compras_ctx['cliente_id'] == int(cid)]
+                if not mes_df.empty:
+                    try:
+                        mes_cliente = int(float(mes_df['mes_num'].iloc[-1]))
+                    except Exception:
+                        pass
+
+            ctx_ids_eval = contexto_ids[-10:]
+            max_emb_id_eval = modelo_gru.item_embedding.num_embeddings - 1
+            ctx_ids_seguros_eval = [pid if pid <= max_emb_id_eval else 0 for pid in ctx_ids_eval]
+            pad_len_eval = max(0, 10 - len(ctx_ids_seguros_eval))
+            ctx_padded_eval = [0] * pad_len_eval + ctx_ids_seguros_eval
+
+            tensor_ctx = torch.tensor([ctx_padded_eval], dtype=torch.long)
+            cli_t = torch.tensor([cliente2idx.get(int(cid), 0)], dtype=torch.long)
+            mes_t = torch.tensor([int(mes_cliente)], dtype=torch.long)
+
+            with torch.no_grad():
+                out_eval, attn_eval = modelo_gru(tensor_ctx, cli_t, mes_t)
+                scores_eval = torch.sigmoid(out_eval[0]).numpy()
+                pesos_attn_eval = attn_eval[0].squeeze(-1).numpy()
+
+            indices_ordenados = scores_eval.argsort()[::-1]
+            top_5_filtrado = []
+            for idx_prod in indices_ordenados:
+                if idx_prod == 0: continue
+                if len(top_5_filtrado) >= 5: break
+                nombre_prod_eval = mapa_productos.get(idx_prod, "")
+                es_seguro_eval, _ = pasa_filtros_seguridad(nombre_prod_eval, contexto_nombres, zona_activa, compras_ctx, mapa_productos)
+                if es_seguro_eval:
+                    top_5_filtrado.append(idx_prod)
+
+            productos_sugeridos_unicos.update(top_5_filtrado)
+            hr_total += 1 if ground_truth_id in top_5_filtrado[:5] else 0
+            
+            if ground_truth_id in top_5_filtrado[:5]:
+                idx_gt = top_5_filtrado.index(ground_truth_id)
+                ndcg_total += 1 / np.log2(idx_gt + 2)
+            
+            atencion_media += np.max(pesos_attn_eval)
+            casos_validos += 1
+
+        if casos_validos > 0:
+            hr_final = (hr_total / casos_validos) * 100
+            ndcg_final = ndcg_total / casos_validos
+            atencion_final = (atencion_media / casos_validos) * 100
+            cobertura_catalogo = (len(productos_sugeridos_unicos) / num_items) * 100
+        else:
+            hr_final = ndcg_final = atencion_final = cobertura_catalogo = 0
+
+        xai_detalles["telemetria"] = {
+            "hit_rate_5": f"{hr_final:.1f}%",
+            "ndcg_5": f"{ndcg_final:.3f}",
+            "pico_atencion": f"{atencion_final:.1f}%",
+            "cobertura_catalogo": f"{cobertura_catalogo:.1f}%"
+        }
+    except Exception as e:
+        sys.stderr.write(f"[WARNING] Error calculating telemetry: {e}\n")
+
+    # Bucle por meses
     for paso, mes_nombre in enumerate(horizonte_meses):
-        # Corrección del paso para que el paso 0 evalúe el mes actual
         mes_prediccion = ((mes_actual + paso - 1) % 12) + 1
         mes_tensor = torch.tensor([mes_prediccion], dtype=torch.long)
         
@@ -244,8 +420,64 @@ def predecir(cliente_id):
             item_foco_id = hist_tensor[0][idx_max_attn].item()
             item_foco_nombre = mapa_productos.get(item_foco_id, historial_simulado[-1] if historial_simulado else "Historial Base")
             
-            # Simulación NCF
-            scores_ncf = np.random.rand(num_items)
+            # Guardar pesos de atención en Paso 4
+            if paso == 0:
+                nombres_ctx = ([None] * pad_len) + [mapa_productos.get(pid, str(pid)) for pid in ctx_ids_seguros]
+                filas_attn = []
+                for pos, (nombre_p, peso_p) in enumerate(zip(nombres_ctx, pesos_attn)):
+                    if nombre_p is None:
+                        continue
+                    filas_attn.append({
+                        "posicion": f"t-{len(ctx_ids_seguros) - pos}",
+                        "producto": nombre_p,
+                        "peso": f"{peso_p * 100:.2f}%",
+                        "influencia": "⭐ Principal" if peso_p == pesos_attn.max() else (
+                                             "🔸 Alta"     if peso_p >= pesos_attn.mean() else "· Baja")
+                    })
+                xai_detalles["pesos_atencion"] = filas_attn
+            
+            # ── CÁLCULO REAL DEL MOTOR NCF (Clínicas Gemelas en el Espacio Latente) ──
+            cliente_adn = modelo_gru.cliente_embedding.weight[cli_idx_tensor[0]]
+            todos_clientes_adn = modelo_gru.cliente_embedding.weight
+            similitudes = F.cosine_similarity(cliente_adn.unsqueeze(0), todos_clientes_adn)
+            
+            similitudes[cli_idx_tensor[0]] = -1.0  # Ignoramos al propio cliente
+            top_gemelos = torch.topk(similitudes, k=5)
+            
+            indices_gemelos = top_gemelos.indices.detach().numpy()
+            valores_gemelos = top_gemelos.values.detach().numpy()
+            
+            ids_gemelos_reales = [k for k, v in cliente2idx.items() if v in indices_gemelos]
+            
+            gemelos_front = []
+            for idx_gemelo, score_gemelo in zip(indices_gemelos, valores_gemelos):
+                id_real_gemelo = next((k for k, v in cliente2idx.items() if v == idx_gemelo), None)
+                if id_real_gemelo:
+                    compras_de_gemelo = compras_ctx[compras_ctx['cliente_id'] == id_real_gemelo]
+                    top_prods_gemelo = compras_de_gemelo['producto'].value_counts().head(2).index.tolist() if not compras_de_gemelo.empty else ["Sin historial"]
+                    
+                    nombre_g = compras_de_gemelo[col_cliente].iloc[0] if (col_cliente and not compras_de_gemelo.empty) else f"ID: {id_real_gemelo}"
+                    zona_g = compras_de_gemelo[col_zona].iloc[0] if (col_zona and not compras_de_gemelo.empty) else "Nacional"
+                    
+                    gemelos_front.append({
+                        "clinica_gemela": nombre_g,
+                        "zona": zona_g,
+                        "similitud": f"{score_gemelo * 100:.1f}%",
+                        "suele_comprar": ", ".join(top_prods_gemelo)
+                    })
+            
+            if paso == 0:
+                xai_detalles["gemelos_ncf_ui"] = gemelos_front
+            
+            compras_gemelos = compras_ctx[compras_ctx['cliente_id'].isin(ids_gemelos_reales)]
+            frecuencia_gemelos = compras_gemelos['producto_id'].value_counts()
+            scores_ncf = np.zeros(num_items)
+            
+            max_frecuencia_gemelos = frecuencia_gemelos.max() if not frecuencia_gemelos.empty else 1
+            for pid, count in frecuencia_gemelos.items():
+                if pid < num_items:
+                    scores_ncf[pid] = (count / max_frecuencia_gemelos) * 0.90
+            
             top_indices_ncf = scores_ncf.argsort()[::-1][:5]
             top_indices_gru = scores_gru.argsort()[::-1][:10]
             
@@ -274,7 +506,7 @@ def predecir(cliente_id):
             else:
                 nombre_prod = mapa_productos.get(prod_id, str(prod_id))
                 
-            es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa)
+            es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa, compras_ctx, mapa_productos)
             if not es_seguro:
                 continue
                 
@@ -430,7 +662,8 @@ def predecir(cliente_id):
         "historial": historial_nombres,
         "historial_detallado": historial_detallado,
         "proyecciones": proyecciones,
-        "grafo": {"nodos": nodos, "enlaces": enlaces}
+        "grafo": {"nodos": nodos, "enlaces": enlaces},
+        "xai_detalles": xai_detalles
     }
 
 if __name__ == "__main__":

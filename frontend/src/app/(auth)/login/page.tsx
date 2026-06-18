@@ -52,7 +52,7 @@ export default function Login() {
             Análisis de Demanda Farmacéutica con Deep Learning
           </h2>
           <p className="text-md text-neutral-400 leading-relaxed">
-            Predicciones de alta fidelidad basadas en LSTM y sistemas expertos de recomendación (XAI) para la optimización comercial.
+            Predicciones de alta fidelidad basadas en Attention-Gru y sistemas expertos de recomendación (XAI) para la optimización comercial.
           </p>
         </div>
         <div className="text-xs text-neutral-600">

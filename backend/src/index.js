@@ -161,7 +161,7 @@ app.get('/api/statistics', async (c) => {
 
   const modelSummary = {
     ncfAccuracy: (precisionNum * 100).toFixed(1),
-    lstmAccuracy: (hitRateNum * 100).toFixed(1),
+    attentionGruAccuracy: (hitRateNum * 100).toFixed(1),
     dataQuality: 91.2,
     status: 'Healthy'
   }
@@ -272,6 +272,41 @@ app.get('/api/productos/nuevos', async (c) => {
   } catch (err) {
     return c.json({ error: "No se pudieron obtener los productos nuevos desde el archivo", details: err.message }, 500)
   }
+})
+
+// Endpoint para obtener la similitud de un nuevo lanzamiento contra los productos existentes
+app.get('/api/productos/similitud/:nombre', async (c) => {
+  const nombre = c.req.param('nombre')
+  
+  // 1. Intentar llamar a FastAPI
+  try {
+    const response = await fetch(`${FASTAPI_URL}/api/productos/similitud/${encodeURIComponent(nombre)}`)
+    if (response.ok) {
+      const data = await response.json()
+      return c.json(data)
+    }
+  } catch (err) {
+    console.log(`[HONO API] FastAPI /api/productos/similitud offline. Corriendo CLI fallback...`)
+  }
+
+  // 2. Fallback CLI: Ejecutar get_similarity.py
+  return new Promise((resolve) => {
+    const rootPath = path.resolve(__dirname, '../../')
+    const pythonBin = getPythonBin()
+    const pythonCmd = `${pythonBin} src_py/get_similarity.py "${nombre}"`
+    exec(pythonCmd, { cwd: rootPath }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[HONO API] Fallback CLI similitud falló:`, stderr)
+        return resolve(c.json({ error: "No se pudo calcular la similitud en la base de datos local", details: stderr }, 500))
+      }
+      try {
+        const data = JSON.parse(stdout)
+        return resolve(c.json(data))
+      } catch (e) {
+        return resolve(c.json({ error: "Respuesta inválida del CLI de similitud", details: stdout }, 500))
+      }
+    })
+  })
 })
 
 // Endpoint para registrar un nuevo producto (Nuevos Lanzamientos)

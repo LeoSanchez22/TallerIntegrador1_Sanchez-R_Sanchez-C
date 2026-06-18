@@ -18,7 +18,7 @@ export default function SalesChart({ chartData, clientesActivos }: SalesChartPro
   return (
     <div className="bg-white dark:bg-neutral-900/40 backdrop-blur-md rounded-xl p-6 border border-neutral-200 dark:border-neutral-800 shadow-sm transition-all duration-200">
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">Ventas Históricas vs Predicción LSTM</h2>
+        <h2 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">Ventas Históricas vs Predicción Attention-Gru</h2>
         <p className="text-sm text-neutral-500 dark:text-neutral-400">Forecasting a 3 meses con predicciones de red neuronal basado en {clientesActivos} clientes</p>
       </div>
       {chartData && chartData.length > 0 ? (
@@ -60,7 +60,7 @@ export default function SalesChart({ chartData, clientesActivos }: SalesChartPro
                   stroke="#00B4D8"
                   strokeWidth={3}
                   strokeDasharray="5 5"
-                  name="Predicción LSTM (S/)"
+                  name="Predicción Attention-Gru (S/)"
                   dot={false}
                   connectNulls={false}
                   isAnimationActive={false}

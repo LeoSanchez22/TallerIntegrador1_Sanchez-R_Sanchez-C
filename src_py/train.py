@@ -29,8 +29,8 @@ warnings.filterwarnings('ignore')
 # CONFIGURACIÓN CENTRAL — Ajusta según tus datos
 # =====================================================================
 CONFIG = {
-    "data_dir":        Path("data/intermediate"),
-    "output_model":    Path("models/modelo_sophia_final.pt"),
+    "data_dir":        Path(__file__).resolve().parent / "data" / "intermediate",
+    "output_model":    Path(__file__).resolve().parent / "models" / "modelo_sophia_final.pt",
     "embedding_dim":   64,
     "hidden_dim":      128,
     "dropout":         0.3,
