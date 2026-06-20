@@ -1,4 +1,4 @@
-Lammra2469!Lammra2469!Lammra2469!Lammra2469!# Modelo de Recomendación y Predicción de Ventas con Deep Learning 
+# Modelo de Recomendación y Predicción de Ventas con Deep Learning 
 
 Este repositorio contiene el código para el procesamiento de datos, análisis de contexto comercial y entrenamiento de un modelo de Deep Learning basado en redes neuronales recurrentes, Attention-Gru, NCF y Transfer Learning. El objetivo del sistema es procesar el historial de transacciones para predecir ventas y recomendar productos farmacéuticos u oftalmológicos específicos a clientes.
 
