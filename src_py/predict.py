@@ -9,8 +9,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
-sys.stdout.reconfigure(encoding='utf-8')
-sys.stderr.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
 
 # Asegurar que el directorio raíz está en el path para las importaciones
 DIRECTORIO_RAIZ = Path(__file__).resolve().parent.parent
