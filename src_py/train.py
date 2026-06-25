@@ -32,7 +32,7 @@ warnings.filterwarnings('ignore')
 # =====================================================================
 CONFIG = {
     "data_dir":        Path(__file__).resolve().parent / "data" / "intermediate",
-    "output_model":    Path(__file__).resolve().parent / "models" / "modelo_sophia_final.pt",
+    "output_model":    Path(__file__).resolve().parent.parent / "models" / "modelo_sophia_final.pt",
     "embedding_dim":   64,
     "hidden_dim":      128,
     "dropout":         0.3,
