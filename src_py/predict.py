@@ -25,7 +25,7 @@ load_dotenv(dotenv_path=DIRECTORIO_RAIZ / ".env")
 
 # Configuración de rutas
 DATA_DIR = Path(__file__).resolve().parent / "data" / "intermediate"
-MODEL_PATH = Path(__file__).resolve().parent / "models" / "modelo_sophia_final.pt"
+MODEL_PATH = DIRECTORIO_RAIZ / "models" / "modelo_sophia_final.pt"
 JSON_PATH = Path(__file__).resolve().parent / "data" / "productos_metadata.json"
 
 # Negocio
