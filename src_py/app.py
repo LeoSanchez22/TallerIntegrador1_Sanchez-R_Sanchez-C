@@ -1,6 +1,6 @@
 print(">>> INICIANDO STREAMLIT... CARGANDO LIBRERÍAS CLOUD Y MLOps <<<")
 import os
-import google.generativeai as genai
+from google import genai
 import pandas as pd
 import numpy as np
 import torch
@@ -318,9 +318,6 @@ with st.expander("🛡️ Auditoría de Reglas de Negocio y Filtros (Restriccion
 # =====================================================================
 # REGLAS DE NEGOCIO — DINÁMICAS DESDE DATOS REALES
 # =====================================================================
-# Los quiebres de stock se calculan directamente desde la base de datos:
-# productos marcados como sin_stock o con stock=0 en la zona activa.
-# Si no existe esa columna, la lista queda vacía (sin bloqueos hardcodeados).
 def obtener_quiebres_zona(zona):
     cols = compras_ctx.columns.tolist()
     if 'sin_stock' in cols:
@@ -332,35 +329,37 @@ def obtener_quiebres_zona(zona):
             (compras_ctx[col_zona] == zona) & (compras_ctx['stock'] == 0)
         ]['producto'].unique().tolist() if col_zona else []
     else:
-        # Sin columna de stock: no se bloquea ningún producto por quiebre
         df_quiebre = []
     return df_quiebre
 
+# 🌟 RESTAURADO: Necesario para que la UI no colapse en el Paso 5
 def obtener_pares_canibalizacion():
-    """
-    Pares de canibalización derivados de las sub-familias del catálogo.
-    Si dos productos comparten sub-familia y uno tiene 'PF' o 'PLUS' en el nombre,
-    se considera versión premium del otro → riesgo de canibalización.
-    """
     pares = []
     nombres = list(mapa_productos.values())
     for nombre in nombres:
-        base = nombre.replace(' PF', '').replace(' PLUS', '').strip()
-        if base != nombre and base in nombres:
-            pares.append((base, nombre))   # (producto_base, versión_premium)
+        base = nombre.replace(' PF', '').replace(' PLUS', '').replace(' U', '').replace(' O', '').strip()
+        if base != nombre:
+            variantes = [n for n in nombres if base in n and n != nombre]
+            for var in variantes:
+                if (var, nombre) not in pares and (nombre, var) not in pares:
+                    pares.append((var, nombre))
     return pares
 
 PARES_CANIBALIZACION = obtener_pares_canibalizacion()
 
-def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual):
-    # Filtro 1: quiebres de stock derivados de la BD (no hardcodeados)
-    quiebres = obtener_quiebres_zona(zona_actual)
-    if producto_sugerido in quiebres:
+def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual, motor_origen):
+    # LEY 1: Stock
+    if producto_sugerido in obtener_quiebres_zona(zona_actual):
         return False, f"Sin stock en {zona_actual}."
-    # Filtro 2: canibalización dinámica por pares detectados en el catálogo
-    for base, premium in PARES_CANIBALIZACION:
-        if producto_sugerido == premium and base in historial_cliente:
-            return False, f"Riesgo de canibalización: cliente ya consume {base}."
+        
+    # LEY 2: NCF es estrictamente para CROSS-SELLING (Nuevos)
+    if motor_origen == 'NCF' and producto_sugerido in historial_cliente:
+        return False, "Bloqueo NCF: Producto ya consumido."
+
+    # LEY 3: GRU es estrictamente para REPOSICIÓN (Existentes)
+    if motor_origen == 'Atención-GRU' and producto_sugerido not in historial_cliente:
+        return False, "Bloqueo GRU: Producto jamás comprado."
+
     return True, "Aprobado"
 
 # =====================================================================
@@ -494,55 +493,73 @@ def prediccion_cold_start(zona_activa, historial_ids):
     return top_zona, "Popularidad Zonal"
 
 # =====================================================================
-# 5. MOTOR XAI CON GOOGLE GEMINI (INYECCIÓN DINÁMICA)
+# 5. MOTOR XAI CON GOOGLE GEMINI (INYECCIÓN DINÁMICA B2B)
 # =====================================================================
 def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, item_foco_tensor=None, peso_tensor=None):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "⚠️ Falta GEMINI_API_KEY en .env"
 
-    genai.configure(api_key=api_key)
-    mes_texto      = horizonte_mes.split(" (")[1].replace(")", "").lower() if "(" in horizonte_mes else horizonte_mes.lower()
+    mes_texto = horizonte_mes.split(" (")[1].replace(")", "").lower() if "(" in horizonte_mes else horizonte_mes.lower()
     historial_base = item_foco_tensor if motor_origen == 'Atención-GRU' else (historial_cliente[-1] if historial_cliente else "Productos habituales")
-    es_autorregresivo = "Mes +1" in horizonte_mes or "Mes +2" in horizonte_mes
 
+    # 1. BASE LÓGICA ESTRATÉGICA (Ahora con justificación clara del "Disparador")
     if motor_origen == 'Atención-GRU':
-        logica_xai = f"El modelo detectó una 'Causalidad GRU' secuencial. La capa de atención asignó {peso_tensor}% de relevancia al consumo histórico de '{historial_base}'. Esto indica un ciclo de reposición inminente en el tiempo."
+        logica_xai = f"Correlación secuencial de inventario. El sistema analizó el historial y detectó con un {peso_tensor}% de certeza matemática que la reciente compra de '{historial_base}' funciona como un indicador temprano del quiebre de stock inminente de '{producto_sugerido}'. No es coincidencia, es su ciclo de rotación habitual."
     elif motor_origen == 'Cold Start':
-        logica_xai = f"Activación de 'Cold Start'. Al carecer de historial suficiente, '{producto_sugerido}' se recomienda por tener alta adopción en otras clínicas de la zona."
+        logica_xai = f"Estrategia de penetración geográfica. Ante la escasez de datos históricos de esta clínica, sugerimos '{producto_sugerido}' por ser el motor de rentabilidad principal en otras instituciones de la zona."
     elif motor_origen == 'Contenido (Nuevo Lanzamiento)':
-        logica_xai = f"El Motor de Similitud por Contenido calculó afinidad terapéutica entre '{producto_sugerido}' y '{historial_base}'. Comparten familia terapéutica y vía de administración. Este es un producto de nuevo lanzamiento sin historial de ventas: la recomendación se basa en la compatibilidad clínica de sus metadatos, no en transacciones previas."
+        logica_xai = f"Expansión de portafolio sin riesgo. '{producto_sugerido}' es un lanzamiento que comparte el mismo ADN clínico que '{historial_base}' (el cual ya compran), garantizando fácil adopción institucional."
     else:
-        logica_xai = f"El modelo detectó una 'Afinidad NCF'. Evaluando el Espacio Latente, encontró que clínicas con un perfil estructural idéntico a esta, que ya consumen '{historial_base}', tienen una probabilidad muy alta de adoptar '{producto_sugerido}'."
+        logica_xai = f"Oportunidad de Cross-Selling (NCF). Clínicas idénticas a nivel nacional que ya abastecen '{historial_base}', están maximizando sus ventas incluyendo '{producto_sugerido}' en sus compras."
 
-    if es_autorregresivo:
-        logica_xai += f" IMPORTANTE: Esta es una proyección autorregresiva para el {mes_texto}. El sistema está asumiendo que las ventas sugeridas en los meses previos fueron cerradas con éxito."
+    # 1.5 SUPOSICIONES DE HORIZONTE: EL "CAMINO FELIZ" DEL PIPELINE DE VENTAS
+    if "Mes +1" in horizonte_mes:
+        suposicion = "Proyección en cascada: Asume que lograremos cerrar la cuota del Mes Actual, preparando a la clínica para adoptar este fármaco el próximo mes."
+        logica_xai += f" {suposicion}"
+    elif "Mes +2" in horizonte_mes:
+        suposicion = "Camino Feliz (Happy Path): Meta de expansión a largo plazo, asumiendo que el cliente cerró las recomendaciones de los dos meses anteriores."
+        logica_xai += f" {suposicion}"
 
+    # 2. PROMPT DE GRADO EMPRESARIAL (System Persona + Restricciones Cuantitativas)
     prompt = f"""
-    Eres el motor de Inteligencia Artificial Explicable (XAI) de Laboratorios Sophia.
-    Tu tarea es traducir la lógica matemática de nuestros modelos en una justificación clínica y comercial de EXACTAMENTE 2 a 3 líneas para el visitador médico.
+    Actúa como un Director de Inteligencia Comercial B2B experto en Supply Chain farmacéutico.
+    Tu objetivo es transformar un dato matemático en un argumento de ventas B2B persuasivo, fluido y directo al grano, para guiar a un visitador médico.
     
-    Variables del sistema:
-    - Producto Sugerido: '{producto_sugerido}'
-    - Detonante Histórico: '{historial_base}'
-    - Proyección para: {mes_texto}
-    - Razón Matemática a Explicar: {logica_xai}
+    DATOS DEL NEGOCIO:
+    - Fármaco a vender: '{producto_sugerido}'
+    - Fármaco detonante (marcador temporal/contexto): '{historial_base}'
+    - Horizonte Temporal: {horizonte_mes}
+    - Fundamento Logístico y Suposiciones: {logica_xai}
     
-    INSTRUCCIONES CRÍTICAS:
-    1. GENERACIÓN DINÁMICA: Escribe un argumento de ventas basándote ESTRICTAMENTE en la 'Razón Matemática a Explicar'. Explícale al vendedor por qué el sistema hizo esta conexión.
-    2. SI ES CAUSALIDAD GRU: Menciona la dependencia temporal o el ciclo de reposición clínico.
-    3. SI ES AFINIDAD NCF: Menciona el perfil de la clínica, su similitud con otras instituciones y la sinergia médica entre ambos productos, ignorando el tiempo.
-    4. SI ES AUTORREGRESIVO (Mes futuro): Explica cómo esta sugerencia es un paso estratégico de expansión asumiendo el éxito de las ventas previas.
-    5. OBLIGATORIO: Menciona textualmente '{producto_sugerido}' y '{historial_base}'.
-    6. TONO: Nivel Ingeniería a Negocios. Persuasivo, sofisticado.
+    REGLAS ESTRICTAS:
+    1. PROHIBIDO LO MÉDICO: No diagnostiques, no hables de pacientes ni biología. Habla de inventario, rotación, y ciclos de reposición.
+    2. DATOS CUANTITATIVOS (CRÍTICO): Si el 'Fundamento Logístico' incluye un porcentaje (%), OBLIGATORIAMENTE debes escribir ese número exacto en tu respuesta para darle peso científico e irrefutable a la recomendación.
+    3. HORIZONTE Y SUPOSICIÓN: Si la sugerencia es para 'Mes +1' o 'Mes +2', tu texto DEBE explicarle al visitador que esta es una estrategia "en cadena" (depende de cerrar los meses anteriores).
+    4. CLARIDAD DEL DISPARADOR: Explica de forma lógica por qué la compra del Fármaco detonante avisa de la necesidad del Fármaco a vender.
+    5. CERO PLANTILLAS: Redacta orgánicamente. Prohibido decir "Nuestros análisis revelan" o "El modelo sugiere".
     """
 
-    try:
-        model     = genai.GenerativeModel('gemini-1.5-flash', generation_config={"temperature": 0.6})
-        respuesta = model.generate_content(prompt)
-        return respuesta.text.strip()
-    except Exception:
-        return f"Inferencia algorítmica: {logica_xai}"
+    import time
+    max_reintentos = 3
+    for intento in range(max_reintentos):
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config={'temperature': 0.7}
+            )
+            return response.text.strip()
+        except Exception as e:
+            error_str = str(e).upper()
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                if intento < max_reintentos - 1:
+                    time.sleep(3)
+                    continue
+            return f"Proyección Comercial: {logica_xai}"
 
 # =====================================================================
 # 6. EJECUCIÓN DEL PROCESO PREDICTIVO
@@ -716,21 +733,31 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
 
             recomendaciones_mes = []
             aprobadas = 0
+            nombres_ya_sugeridos = set()
+            bases_ya_sugeridas = set() # 🌟 FIX: Escudo para que no se repita la misma marca
 
             for prod_id, motor, score_raw in candidatos:
                 if aprobadas >= 3: break
+                
                 if isinstance(prod_id, str) and prod_id.startswith("NUEVO_"):
-                    nombre_prod = prod_id[len("NUEVO_"):]   # extrae "SPLASH TEARS"
+                    nombre_prod = prod_id[len("NUEVO_"):]
                 else:
                     nombre_prod = mapa_productos.get(prod_id, str(prod_id))
 
-                es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa)
+                # Extraemos la marca base (Ej: 'LAGRICEL PF' -> 'LAGRICEL')
+                base_prod = nombre_prod.replace(' PF', '').replace(' PLUS', '').replace(' U', '').replace(' O', '').strip()
+
+                # 🌟 FIX: Bloquea duplicados exactos Y también a sus "hermanos" de marca
+                if nombre_prod in nombres_ya_sugeridos or base_prod in bases_ya_sugeridas:
+                    continue
+
+                es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa, motor)
                 if not es_seguro: continue
 
                 explicacion = generar_explicacion(
                     nombre_prod, historial_simulado, motor, mes_nombre,
                     item_foco_tensor = item_foco_nombre if motor == 'Atención-GRU' else None,
-                    peso_tensor      = peso_max_pct    if motor == 'Atención-GRU' else None,
+                    peso_tensor      = peso_max_pct     if motor == 'Atención-GRU' else None,
                 )
 
                 estrategia_map = {
@@ -749,6 +776,8 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                     "Item_Atencion":                  item_foco_nombre if motor == 'Atención-GRU' else None,
                 })
 
+                nombres_ya_sugeridos.add(nombre_prod)
+                bases_ya_sugeridas.add(base_prod) # 🌟 Registramos la marca para bloquear a sus hermanos
                 aprobadas += 1
                 if aprobadas == 1:
                     historial_simulado.append(nombre_prod)
@@ -961,7 +990,9 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                         if idx_prod == 0: continue
                         if len(top_5_filtrado) >= 5: break
                         nombre_prod_eval = mapa_productos.get(idx_prod, "")
-                        es_seguro, _ = pasa_filtros_seguridad(nombre_prod_eval, contexto_nombres, zona_activa)
+                        
+                        # 🌟 FIX: Especificamos que la telemetría evalúa a la GRU
+                        es_seguro, _ = pasa_filtros_seguridad(nombre_prod_eval, contexto_nombres, zona_activa, 'Atención-GRU')
                         if es_seguro:
                             top_5_filtrado.append(idx_prod)
 
