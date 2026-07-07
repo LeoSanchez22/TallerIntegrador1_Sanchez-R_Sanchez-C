@@ -628,7 +628,10 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
         historial_ids_reales = list(historial_ids)
 
         es_cold_start  = len(historial_ids) < 3
-        cli_idx_tensor = torch.tensor([cliente2idx.get(cliente_seleccionado, 0)], dtype=torch.long)
+        
+        # 🌟 FIX CRÍTICO: Casteo a int() para que el diccionario reconozca al cliente 
+        # y no devuelva al 'cliente fantasma' (índice 0).
+        cli_idx_tensor = torch.tensor([cliente2idx.get(int(cliente_seleccionado), 0)], dtype=torch.long)
 
         horizonte_meses      = ["Mes Actual (En Curso)", "Mes +1 (Próximo Mes)", "Mes +2 (Proyección)"]
         proyecciones_por_mes = {}
