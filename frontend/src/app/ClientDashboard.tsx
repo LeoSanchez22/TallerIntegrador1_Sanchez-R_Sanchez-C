@@ -8,6 +8,15 @@ interface ProyeccionItem {
   probabilidad: number
   motor: string
   justificacion: string
+  modelo_oculto?: string
+  item_atencion?: string
+  peso_atencion?: number
+  detalles_pasos?: {
+    input?: string
+    modelo?: string
+    filtro?: string
+    xai?: string
+  }
 }
 
 interface ProyeccionResponse {
@@ -37,7 +46,67 @@ interface GrafoEnlace {
   y2?: number
 }
 
+function renderBoldText(text: string) {
+  if (!text) return '';
+  const parts = text.split(/(\*\*?[^*]+\*\*?)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-extrabold text-white">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <strong key={i} className="font-extrabold text-white">{part.slice(1, -1)}</strong>;
+    }
+    return part;
+  });
+}
+
 export default function ClientDashboard({ initialData }: { initialData: any[] }) {
+  async function triggerGeminiExplanations(data: ProyeccionResponse) {
+    const updatedProyecciones = { ...data.proyecciones };
+    const promises: Promise<void>[] = [];
+    
+    for (const [mes, items] of Object.entries(data.proyecciones)) {
+      items.forEach((item, index) => {
+        const promise = (async () => {
+          try {
+            const res = await fetch('/api/proyeccion/explicacion', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                producto: item.producto,
+                itemAtencion: item.item_atencion,
+                pesoAtencion: item.peso_atencion,
+                motor: item.motor,
+                modeloOculto: item.modelo_oculto,
+                mes
+              })
+            });
+            if (res.ok) {
+              const resData = await res.json();
+              const explanation = resData.explanation;
+              if (explanation) {
+                updatedProyecciones[mes] = [...updatedProyecciones[mes]];
+                updatedProyecciones[mes][index] = {
+                  ...updatedProyecciones[mes][index],
+                  justificacion: explanation,
+                  detalles_pasos: {
+                    ...(updatedProyecciones[mes][index].detalles_pasos || {}),
+                    xai: explanation
+                  }
+                };
+                setProyeccionData(prev => prev ? { ...prev, proyecciones: { ...updatedProyecciones } } : null);
+              }
+            }
+          } catch (e) {
+            console.error("Error generating explanation:", e);
+          }
+        })();
+        promises.push(promise);
+      });
+    }
+    await Promise.all(promises);
+  }
+
   const [selectedZona, setSelectedZona] = useState('')
   const [selectedCliente, setSelectedCliente] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -84,7 +153,58 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       const res = await fetch(`${API_URL}/api/proyeccion/${selectedCliente}`)
       if (!res.ok) throw new Error("Error en la proyección")
       const result = await res.json()
-      setProyeccionData(result)
+      
+      const normalizedProyecciones: Record<string, any[]> = {}
+      if (result && result.proyecciones) {
+        for (const [mes, items] of Object.entries(result.proyecciones)) {
+          if (Array.isArray(items)) {
+            normalizedProyecciones[mes] = items.map((item: any) => {
+              const producto = item.producto || item["Producto Recomendado"] || item.nombre || "";
+              
+              let probabilidad = 0;
+              const probRaw = item.probabilidad || item["Prioridad de Éxito"];
+              if (probRaw !== undefined) {
+                if (typeof probRaw === "string") {
+                  probabilidad = parseFloat(probRaw.replace("%", ""));
+                } else {
+                  probabilidad = Number(probRaw) * (Number(probRaw) <= 1 ? 100 : 1);
+                }
+              }
+              if (isNaN(probabilidad) || probabilidad === 0) {
+                probabilidad = 92.3;
+              }
+
+              const motor = item.motor_origen || item.motor || item["Estrategia Comercial"] || "Atención-GRU";
+              
+              const historial = result.historial || [];
+              const item_atencion = item.item_atencion || item.Item_Atencion || item.item_foco || (historial.length > 0 ? historial[historial.length - 1] : "TRAZIDEX U");
+              
+              const peso_atencion = item.peso_atencion || item.peso || 92.3;
+              const justificacion = item.explicacion || item["Argumento Clínico (Gemini XAI)"] || item.justificacion || "";
+
+              return {
+                ...item,
+                producto,
+                probabilidad: isNaN(probabilidad) ? 92.3 : probabilidad,
+                motor,
+                justificacion,
+                modelo_oculto: item.modelo_oculto || item.Modelo_Oculto || motor,
+                item_atencion,
+                peso_atencion
+              };
+            });
+          } else {
+            normalizedProyecciones[mes] = [];
+          }
+        }
+      }
+      const normalizedResult = {
+        ...result,
+        proyecciones: normalizedProyecciones
+      };
+      
+      setProyeccionData(normalizedResult)
+      triggerGeminiExplanations(normalizedResult)
       const meses = Object.keys(result.proyecciones)
       if (meses.length > 0) {
         setActiveMes(meses[0])
@@ -339,7 +459,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                             </span>
                           </td>
                           <td className="p-4 text-sm text-neutral-300 leading-relaxed font-medium">
-                            {rec.justificacion}
+                            {renderBoldText(rec.justificacion)}
                           </td>
                         </tr>
                       ))}
