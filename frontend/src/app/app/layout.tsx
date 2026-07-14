@@ -153,10 +153,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         }
       } catch (err) {
-        // Silenciar errores de red en polling de segundo plano
       }
-    }, 5000);
-
+    }, 300000); 
     // 6. Click outside listener
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
