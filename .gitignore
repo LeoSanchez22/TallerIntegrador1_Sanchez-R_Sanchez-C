@@ -46,6 +46,8 @@ Thumbs.db
 
 # Local env and caches
 .venv/
+venv/
+models/*.pt
 __pycache__/
 .pytest_cache/
 *.zip

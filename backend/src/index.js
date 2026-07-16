@@ -110,6 +110,16 @@ app.post('/model/upload', async (c) => {
     fs.writeFileSync(targetPath, Buffer.from(buffer))
 
     console.log(`[MODEL UPLOAD] Checkpoint del modelo guardado exitosamente en: ${targetPath}`)
+
+    // Recargar el microservicio python (Uvicorn) en PM2 de manera no bloqueante
+    exec('pm2 reload sophia-fastapi', (err, stdout, stderr) => {
+      if (err) {
+        console.error("[MODEL UPLOAD] Error ejecutando pm2 reload sophia-fastapi:", err.message)
+      } else {
+        console.log("[MODEL UPLOAD] pm2 reload sophia-fastapi ejecutado exitosamente:\n", stdout)
+      }
+    })
+
     return c.json({ success: true, message: "Modelo actualizado exitosamente en el servidor de despliegue" })
   } catch (err) {
     console.error("[MODEL UPLOAD] Error procesando subida de modelo:", err.message)

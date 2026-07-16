@@ -1,5 +1,9 @@
 print(">>> INICIANDO STREAMLIT... CARGANDO LIBRERÍAS CLOUD Y MLOps <<<")
 import os
+import sys
+import pathlib
+if sys.platform != "win32":
+    pathlib.WindowsPath = pathlib.PosixPath
 from google import genai
 import pandas as pd
 import numpy as np
@@ -151,7 +155,7 @@ if CONTENT_RECOMMENDER_DISPONIBLE:
 # 2. CARGA DEL MODELO 
 # =====================================================================
 @st.cache_resource
-def cargar_modelo():
+def cargar_modelo(mtime: float):
     if MODEL_PATH.exists():
         checkpoint   = torch.load(MODEL_PATH, map_location='cpu', weights_only=False)
         num_items_m  = checkpoint['num_items']
@@ -186,7 +190,8 @@ def cargar_modelo():
         modo_msg = "⚠️ Modelo SIN entrenar (ejecuta train.py para mejorar el Hit Rate)"
         return modelo, cliente2idx, num_clientes, modo_msg
 
-modelo_gru, cliente2idx, num_clientes, estado_modelo = cargar_modelo()
+mtime = os.path.getmtime(MODEL_PATH) if MODEL_PATH.exists() else 0
+modelo_gru, cliente2idx, num_clientes, estado_modelo = cargar_modelo(mtime)
 st.sidebar.info(estado_modelo)
 st.sidebar.caption(f"📅 Mes actual detectado: **{pd.Timestamp.now().strftime('%B %Y')}** (mes {MES_ACTUAL})")
 if motor_contenido and motor_contenido.hay_productos_nuevos():
@@ -359,6 +364,14 @@ def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual, mo
     # LEY 3: GRU es estrictamente para REPOSICIÓN (Existentes)
     if motor_origen == 'Atención-GRU' and producto_sugerido not in historial_cliente:
         return False, "Bloqueo GRU: Producto jamás comprado."
+
+    # LEY 4: Anti-Canibalización Dinámica por Marca
+    marca_sugerida = producto_sugerido.split()[0]
+    for prod_hist in historial_cliente:
+        marca_hist = prod_hist.split()[0]
+        if marca_sugerida == marca_hist and producto_sugerido != prod_hist:
+            if producto_sugerido not in historial_cliente:
+                return False, f"Riesgo de canibalización: Ya consume la variante '{prod_hist}'."
 
     return True, "Aprobado"
 
@@ -721,7 +734,7 @@ if st.button("🚀 Generar Diagnóstico y Proyección de Demanda (3 Meses)", typ
                 top_indices_gru = scores_gru.argsort()[::-1][:10]
 
                 candidatos = [(int(i), 'Atención-GRU', scores_gru[i]) for i in top_indices_gru if i > 0 and i in mapa_productos] + \
-                             [(int(i + 1), 'NCF', scores_ncf[i]) for i in top_indices_ncf if (i + 1) in mapa_productos]
+                             [(int(i), 'NCF', scores_ncf[i]) for i in top_indices_ncf if int(i) in mapa_productos]
 
             if motor_contenido and motor_contenido.hay_productos_nuevos() and not es_cold_start:
                 mapa_inv = {v.upper(): k for k, v in mapa_productos.items()}

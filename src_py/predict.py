@@ -1,5 +1,8 @@
 import sys
 import os
+import pathlib
+if sys.platform != "win32":
+    pathlib.WindowsPath = pathlib.PosixPath
 import json
 import torch
 import torch.nn.functional as F
@@ -53,16 +56,29 @@ def obtener_pares_canibalizacion(mapa_productos):
             pares.append((base, nombre))   # (producto_base, versión_premium)
     return pares
 
-def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual, compras_df, mapa_productos):
-    # Filtro 1: quiebres de stock derivados de la BD (no hardcodeados)
+def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual, motor_origen, compras_df):
+    # LEY 1: Disponibilidad de Stock
     quiebres = obtener_quiebres_zona(zona_actual, compras_df)
     if producto_sugerido in quiebres:
         return False, f"Sin stock en {zona_actual}."
-    # Filtro 2: canibalización dinámica por pares detectados en el catálogo
-    pares = obtener_pares_canibalizacion(mapa_productos)
-    for base, premium in pares:
-        if producto_sugerido == premium and base in historial_cliente:
-            return False, f"Riesgo de canibalización: cliente ya consume {base}."
+
+    # LEY 2: NCF es estrictamente para CROSS-SELLING (Productos Nuevos)
+    if motor_origen == 'NCF' and producto_sugerido in historial_cliente:
+        return False, "Bloqueo NCF: Intenta sugerir un producto que el cliente ya consume."
+
+    # LEY 3: GRU es estrictamente para REPOSICIÓN (Productos Existentes)
+    if motor_origen == 'Atención-GRU' and producto_sugerido not in historial_cliente:
+        return False, "Bloqueo GRU: Intenta reponer un producto que el cliente nunca ha comprado."
+
+    # LEY 4: Anti-Canibalización Dinámica por Marca
+    marca_sugerida = producto_sugerido.split()[0]
+
+    for prod_hist in historial_cliente:
+        marca_hist = prod_hist.split()[0]
+        if marca_sugerida == marca_hist and producto_sugerido != prod_hist:
+            if producto_sugerido not in historial_cliente:
+                return False, f"Riesgo de canibalización: Ya consume la variante '{prod_hist}'."
+
     return True, "Aprobado"
 
 def generar_explicacion(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, item_foco=None, peso=None, es_autorregresivo=False):
@@ -145,6 +161,68 @@ def cargar_compras_supabase():
     if not compras_path.exists():
         return None
     return pd.read_csv(compras_path)
+class PyTorchModelRegistry:
+    def __init__(self):
+        self.modelo_gru = None
+        self.cliente2idx = {}
+        self.num_clientes = 0
+        self.last_mtime = 0
+        self.modelo_cargado = False
+
+    def obtener_modelo(self, model_path, num_items_fallback, num_clientes_fallback, cliente2idx_fallback):
+        if not model_path.exists():
+            if not self.modelo_cargado:
+                self.num_clientes = num_clientes_fallback
+                self.cliente2idx = cliente2idx_fallback
+                self.modelo_gru = AttentionGRUMejorado(
+                    num_items=num_items_fallback,
+                    num_clientes=self.num_clientes,
+                    dropout=0.0
+                )
+                self.modelo_gru.eval()
+                self.modelo_cargado = False
+            return self.modelo_gru, self.cliente2idx, self.num_clientes
+
+        try:
+            current_mtime = os.path.getmtime(model_path)
+            # Si el modelo no ha sido cargado, o el archivo .pt en disco es más nuevo (nueva subida de Colab):
+            if not self.modelo_cargado or current_mtime > self.last_mtime:
+                sys.stderr.write(f"[MODEL REGISTRY] Detectado cambio o nueva subida del archivo .pt. Cargando/Recargando modelo en memoria... (mtime: {current_mtime})\n")
+                checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+                num_items_m = checkpoint['num_items']
+                self.num_clientes = checkpoint['num_clientes']
+                self.cliente2idx = checkpoint['cliente2idx']
+                cfg = checkpoint.get('config', {})
+                
+                self.modelo_gru = AttentionGRUMejorado(
+                    num_items = num_items_m,
+                    num_clientes = self.num_clientes,
+                    embedding_dim = cfg.get('embedding_dim', 64),
+                    hidden_dim = cfg.get('hidden_dim', 128),
+                    dropout = 0.0,
+                )
+                self.modelo_gru.load_state_dict(checkpoint['model_state'])
+                self.modelo_gru.eval()
+                self.last_mtime = current_mtime
+                self.modelo_cargado = True
+                sys.stderr.write("[MODEL REGISTRY] Modelo cargado exitosamente en RAM. Listo para inferencia.\n")
+        except Exception as e:
+            sys.stderr.write(f"[WARNING] Error en ModelRegistry al cargar checkpoint: {e}. Usando fallback.\n")
+            if not self.modelo_cargado:
+                self.num_clientes = num_clientes_fallback
+                self.cliente2idx = cliente2idx_fallback
+                self.modelo_gru = AttentionGRUMejorado(
+                    num_items=num_items_fallback,
+                    num_clientes=self.num_clientes,
+                    dropout=0.0
+                )
+                self.modelo_gru.eval()
+                self.modelo_cargado = False
+                
+        return self.modelo_gru, self.cliente2idx, self.num_clientes
+
+# Instancia global única compartida por el ciclo de vida del servidor
+_REGISTRY = PyTorchModelRegistry()
 
 
 def predecir(cliente_id):
@@ -178,43 +256,13 @@ def predecir(cliente_id):
         sys.stderr.write(f"[WARNING] Error inicializando MotorContenido: {e}\n")
 
     # Cargar modelo PyTorch
-    modelo_cargado = False
-    cliente2idx = {}
-    num_clientes = 0
-    modelo_gru = None
+    clientes_unicos = sorted(compras_ctx['cliente_id'].unique().tolist())
+    cliente2idx_fallback = {c: i + 1 for i, c in enumerate(clientes_unicos)}
+    num_clientes_fallback = len(clientes_unicos) + 1
     
-    if MODEL_PATH.exists():
-        try:
-            checkpoint = torch.load(MODEL_PATH, map_location='cpu', weights_only=False)
-            num_items_m = checkpoint['num_items']
-            num_clientes = checkpoint['num_clientes']
-            cliente2idx = checkpoint['cliente2idx']
-            cfg = checkpoint.get('config', {})
-            
-            modelo_gru = AttentionGRUMejorado(
-                num_items = num_items_m,
-                num_clientes = num_clientes,
-                embedding_dim = cfg.get('embedding_dim', 64),
-                hidden_dim = cfg.get('hidden_dim', 128),
-                dropout = 0.0,
-            )
-            modelo_gru.load_state_dict(checkpoint['model_state'])
-            modelo_gru.eval()
-            modelo_cargado = True
-        except Exception as e:
-            sys.stderr.write(f"[WARNING] Error cargando modelo PyTorch: {e}\n")
-            
-    if not modelo_cargado:
-        # Fallback a un modelo vacío no entrenado para no romper la ejecución
-        clientes_unicos = sorted(compras_ctx['cliente_id'].unique().tolist())
-        cliente2idx = {c: i + 1 for i, c in enumerate(clientes_unicos)}
-        num_clientes = len(clientes_unicos) + 1
-        modelo_gru = AttentionGRUMejorado(
-            num_items = num_items,
-            num_clientes = num_clientes,
-            dropout = 0.0,
-        )
-        modelo_gru.eval()
+    modelo_gru, cliente2idx, num_clientes = _REGISTRY.obtener_modelo(
+        MODEL_PATH, num_items, num_clientes_fallback, cliente2idx_fallback
+    )
 
     historial_ids = historial_cliente['producto_id'].tolist()
     historial_nombres = [mapa_productos[pid] for pid in historial_ids if pid in mapa_productos]
@@ -352,7 +400,7 @@ def predecir(cliente_id):
                 if idx_prod == 0: continue
                 if len(top_5_filtrado) >= 5: break
                 nombre_prod_eval = mapa_productos.get(idx_prod, "")
-                es_seguro_eval, _ = pasa_filtros_seguridad(nombre_prod_eval, contexto_nombres, zona_activa, compras_ctx, mapa_productos)
+                es_seguro_eval, _ = pasa_filtros_seguridad(nombre_prod_eval, contexto_nombres, zona_activa, 'Atención-GRU', compras_ctx)
                 if es_seguro_eval:
                     top_5_filtrado.append(idx_prod)
 
@@ -484,7 +532,7 @@ def predecir(cliente_id):
             top_indices_gru = scores_gru.argsort()[::-1][:10]
             
             candidatos = [(int(i), 'Atención-GRU', scores_gru[i]) for i in top_indices_gru if i > 0 and i in mapa_productos] + \
-                         [(int(i + 1), 'NCF', scores_ncf[i]) for i in top_indices_ncf if (i + 1) in mapa_productos]
+                         [(int(i), 'NCF', scores_ncf[i]) for i in top_indices_ncf if int(i) in mapa_productos]
                          
         # Inyectar nuevos productos
         if motor_contenido and motor_contenido.hay_productos_nuevos() and not es_cold_start:
@@ -498,6 +546,8 @@ def predecir(cliente_id):
         
         recomendaciones_mes = []
         aprobadas = 0
+        nombres_ya_sugeridos = set()
+        bases_ya_sugeridas = set() # Escudo Anti-Familias
         
         for prod_id, motor, score_raw in candidatos:
             if aprobadas >= 3:
@@ -508,7 +558,14 @@ def predecir(cliente_id):
             else:
                 nombre_prod = mapa_productos.get(prod_id, str(prod_id))
                 
-            es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa, compras_ctx, mapa_productos)
+            # Extraemos la marca base
+            base_prod = nombre_prod.replace(' PF', '').replace(' PLUS', '').replace(' U', '').replace(' O', '').strip()
+
+            # Evitar duplicados y familias repetidas en el mismo mes
+            if nombre_prod in nombres_ya_sugeridos or base_prod in bases_ya_sugeridas:
+                continue
+
+            es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa, motor, compras_ctx)
             if not es_seguro:
                 continue
                 
@@ -577,6 +634,8 @@ def predecir(cliente_id):
                 }
             })
             
+            nombres_ya_sugeridos.add(nombre_prod)
+            bases_ya_sugeridas.add(base_prod)
             aprobadas += 1
             if aprobadas == 1:
                 historial_simulado.append(nombre_prod)
