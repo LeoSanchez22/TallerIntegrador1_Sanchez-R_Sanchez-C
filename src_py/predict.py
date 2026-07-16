@@ -1,5 +1,8 @@
 import sys
 import os
+import pathlib
+if sys.platform != "win32":
+    pathlib.WindowsPath = pathlib.PosixPath
 import json
 import torch
 import torch.nn.functional as F
@@ -498,6 +501,8 @@ def predecir(cliente_id):
         
         recomendaciones_mes = []
         aprobadas = 0
+        nombres_ya_sugeridos = set()
+        bases_ya_sugeridas = set() # Escudo Anti-Familias
         
         for prod_id, motor, score_raw in candidatos:
             if aprobadas >= 3:
@@ -508,6 +513,13 @@ def predecir(cliente_id):
             else:
                 nombre_prod = mapa_productos.get(prod_id, str(prod_id))
                 
+            # Extraemos la marca base
+            base_prod = nombre_prod.replace(' PF', '').replace(' PLUS', '').replace(' U', '').replace(' O', '').strip()
+
+            # Evitar duplicados y familias repetidas en el mismo mes
+            if nombre_prod in nombres_ya_sugeridos or base_prod in bases_ya_sugeridas:
+                continue
+
             es_seguro, _ = pasa_filtros_seguridad(nombre_prod, historial_simulado, zona_activa, compras_ctx, mapa_productos)
             if not es_seguro:
                 continue
@@ -577,6 +589,8 @@ def predecir(cliente_id):
                 }
             })
             
+            nombres_ya_sugeridos.add(nombre_prod)
+            bases_ya_sugeridas.add(base_prod)
             aprobadas += 1
             if aprobadas == 1:
                 historial_simulado.append(nombre_prod)

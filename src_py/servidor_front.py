@@ -1,5 +1,8 @@
 import os
 import sys
+import pathlib
+if sys.platform != "win32":
+    pathlib.WindowsPath = pathlib.PosixPath
 import threading
 import subprocess
 from fastapi import FastAPI, HTTPException, BackgroundTasks

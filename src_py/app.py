@@ -1,5 +1,9 @@
 print(">>> INICIANDO STREAMLIT... CARGANDO LIBRERÍAS CLOUD Y MLOps <<<")
 import os
+import sys
+import pathlib
+if sys.platform != "win32":
+    pathlib.WindowsPath = pathlib.PosixPath
 from google import genai
 import pandas as pd
 import numpy as np
