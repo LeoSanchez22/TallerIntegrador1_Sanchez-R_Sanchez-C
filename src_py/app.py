@@ -52,13 +52,23 @@ PATHS = {'intermediate': DIRECTORIO_RAIZ / 'data' / 'intermediate'}
 def cargar_datos():
     load_dotenv()
     db_uri = os.environ.get("DATABASE_URL")
+    
     try:
         if not db_uri or "tu_contraseña" in db_uri:
-            raise ValueError("DATABASE_URL no configurada")
+            raise ValueError("La variable DATABASE_URL no existe en el .env o es inválida.")
+        
+        # FIX AUTOMÁTICO: Corrige el dialecto de Supabase para SQLAlchemy
+        if db_uri.startswith("postgres://"):
+            db_uri = db_uri.replace("postgres://", "postgresql://", 1)
+            
         engine = create_engine(db_uri)
         compras = pd.read_sql_query("SELECT * FROM ventas_detalle", con=engine)
+        print("✅ CONEXIÓN EXITOSA A SUPABASE DESDE LOCAL.")
         return compras
-    except Exception:
+        
+    except Exception as e:
+        # AHORA SÍ VEREMOS EL ERROR REAL EN LA TERMINAL
+        print(f"\n❌ ERROR FATAL DE CONEXIÓN A BD: {str(e)}\n")
         print("⚠️ Usando CSVs locales...")
         compras = pd.read_csv(PATHS['intermediate'] / 'compras_ctx.csv')
         return compras
@@ -221,7 +231,6 @@ def pasa_filtros_seguridad(producto_sugerido, historial_cliente, zona_actual, mo
                 return False, "Riesgo de canibalización."
     return True, "Aprobado"
 
-# CORRECCIÓN VITAL 1: El XAI ahora sabe si el detonante es Histórico o Proyectado
 def generar_explicacion_ml(producto_sugerido, historial_cliente, motor_origen, horizonte_mes, cant_sug, ingreso_est, confianza=None, lift=None, detonante=None, es_historico=True):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -329,19 +338,36 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
         nombres_recomendados_trimestre = set()
         bases_recomendadas_trimestre = set()
 
+        # --- CONEXIÓN DE ARQUITECTURA: PRE-CÁLCULO POLINOMIAL ---
+        # Calculamos la tendencia del cliente antes de iniciar las cotizaciones
+        limites_polinomiales = {}
+        if 'mes' in historial_crudo.columns and len(historial_crudo) > 0:
+            tendencia_mensual = historial_crudo.groupby('mes')['cantidad'].sum().reset_index()
+            if len(tendencia_mensual) >= 3:
+                x_hist = tendencia_mensual['mes'].values
+                y_hist = tendencia_mensual['cantidad'].values
+                coeficientes = np.polyfit(x_hist, y_hist, 2)
+                polinomio = np.poly1d(coeficientes)
+                
+                ultimo_mes_real = x_hist.max()
+                # Establecemos los topes matemáticos para cada mes
+                limites_polinomiales["Mes Actual (En Curso)"] = max(0, int(polinomio(ultimo_mes_real)))
+                limites_polinomiales["Mes +1 (Próximo Mes)"] = max(0, int(polinomio(ultimo_mes_real + 1)))
+                limites_polinomiales["Mes +2 (Proyección)"] = max(0, int(polinomio(ultimo_mes_real + 2)))
+
         for paso, mes_nombre in enumerate(horizonte_meses):
             candidatos = []
             
-            # 1. MOTOR APRIORI (Evaluando los detonadores filtrados)
+            # 1. MOTOR APRIORI
             if not reglas_asociacion.empty:
-                # CORRECCIÓN VITAL 2: issubset garantiza que el cliente tenga TODOS los requisitos de la regla
                 set_detonadores = set(detonadores_simulados)
                 reglas_aplicables = reglas_asociacion[
                     reglas_asociacion['antecedents'].apply(lambda x: set(x).issubset(set_detonadores))
                 ]
                 
                 for _, regla in reglas_aplicables.iterrows():
-                    antecedentes = list(regla['antecedents'])
+                    # --- CORRECCIÓN 1: ORDEN ALFABÉTICO DEL DETONANTE PARA DETERMINISMO ---
+                    antecedentes = sorted(list(regla['antecedents'])) 
                     consecuentes = list(regla['consequents'])
                     confianza_pct = round(regla['confidence'] * 100, 1)
                     lift_val      = round(regla['lift'], 2)
@@ -354,7 +380,7 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
                                 "score": regla['lift'], 
                                 "confianza": confianza_pct,
                                 "lift": lift_val,
-                                "detonante": antecedentes[0] # Al usar issubset, es seguro tomar el primero
+                                "detonante": antecedentes[0] 
                             })
 
             # 2. MOTOR K-MEANS
@@ -372,19 +398,24 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
                             "confianza": "N/A", "lift": "N/A", "detonante": "Perfil de su Cluster"
                         })
             
-            # 3. MOTOR DE CONTENIDO
-            if motor_contenido and motor_contenido.hay_productos_nuevos():
+            # 3. MOTOR DE CONTENIDO (TF-IDF)
+            # --- CORRECCIÓN 3: MANEJO SEGURO DEL MOTOR DE CONTENIDO PARA MES +2 ---
+            if motor_contenido and hasattr(motor_contenido, 'hay_productos_nuevos') and motor_contenido.hay_productos_nuevos():
                 mapa_inv = {v.upper(): k for k, v in mapa_productos.items()}
-                candidatos_nuevos = inyectar_candidatos_nuevos(motor_contenido, historial_simulado, mapa_inv)
-                for prod_id_n, motor_n, score_n, meta_n in candidatos_nuevos:
-                    nombre_n = prod_id_n.replace("NUEVO_", "") if isinstance(prod_id_n, str) else mapa_productos.get(prod_id_n, str(prod_id_n))
-                    candidatos.append({
-                        "prod": nombre_n, "motor": motor_n, "score": score_n, 
-                        "confianza": f"{score_n*100:.1f}", "lift": "TF-IDF", "detonante": meta_n['similar_a']
-                    })
+                try:
+                    candidatos_nuevos = inyectar_candidatos_nuevos(motor_contenido, historial_simulado, mapa_inv)
+                    for prod_id_n, motor_n, score_n, meta_n in candidatos_nuevos:
+                        nombre_n = prod_id_n.replace("NUEVO_", "") if isinstance(prod_id_n, str) else mapa_productos.get(prod_id_n, str(prod_id_n))
+                        candidatos.append({
+                            "prod": nombre_n, "motor": motor_n, "score": score_n, 
+                            "confianza": f"{score_n*100:.1f}", "lift": "TF-IDF", "detonante": meta_n['similar_a']
+                        })
+                except Exception:
+                    pass
 
             recomendaciones_mes = []
-            candidatos.sort(key=lambda x: x["score"], reverse=True)
+            # Ordenamos por score descendente y, en caso de empate matemático, por orden alfabético del fármaco
+            candidatos.sort(key=lambda x: (-float(x["score"]), x["prod"]))
             
             for cand in candidatos:
                 if len(recomendaciones_mes) >= 3: break
@@ -397,16 +428,33 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
                 
                 seguro, _ = pasa_filtros_seguridad(prod_rec, historial_simulado, zona_activa, cand["motor"])
                 if seguro:
+                    # 1. Volumen Teórico (K-Means)
                     if (cluster_cliente, prod_rec) in volumenes_cluster:
-                        cant_sug = int(volumenes_cluster[(cluster_cliente, prod_rec)])
+                        vol_kmeans = int(volumenes_cluster[(cluster_cliente, prod_rec)])
                     else:
                         mediana_global = compras_ctx[compras_ctx['producto'] == prod_rec]['cantidad'].median()
-                        cant_sug = int(mediana_global) if not pd.isna(mediana_global) else 10
+                        vol_kmeans = int(mediana_global) if not pd.isna(mediana_global) else 10
                     
-                    precio_u = precios_dict.get(prod_rec, 25.0)
-                    ingreso_est = round(cant_sug * precio_u, 2)
+                    # 2. Regla de Determinismo Híbrido (K-Means vs Regresión)
+                    if mes_nombre in limites_polinomiales:
+                        tope_tendencia = limites_polinomiales[mes_nombre]
+                        
+                        # Si la regresión dictamina que el cliente va en picada extrema (0 unds),
+                        # ABORTAMOS la recomendación de este producto para proteger el inventario
+                        if tope_tendencia <= 0:
+                            continue 
+                            
+                        # El volumen final es el menor entre el promedio del cluster y el tope de su propia tendencia
+                        cant_sug = min(vol_kmeans, tope_tendencia)
+                    else:
+                        cant_sug = vol_kmeans
+                    
+                    # --- CORRECCIÓN 2: BLINDAJE FINANCIERO CONTRA VALORES NULOS (NaN) ---
+                    precio_u = precios_dict.get(prod_rec)
+                    if pd.isna(precio_u) or precio_u is None:
+                        precio_u = 25.00 # Respaldo seguro si no existe precio histórico
+                    ingreso_est = round(cant_sug * float(precio_u), 2)
 
-                    # Bandera para saber si el texto debe decir "Historial" o "Cascada"
                     es_historico_bool = cand["detonante"] in historial_nombres_reales
                     exp_xai = generar_explicacion_ml(prod_rec, historial_simulado, cand["motor"], mes_nombre, cant_sug, ingreso_est, cand["confianza"], cand["lift"], cand["detonante"], es_historico_bool)
                     
@@ -432,9 +480,10 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
         # =====================================================================
         st.success("¡Análisis determinístico y proyección financiera completados!")
         
+        # --- SE AÑADE LA PESTAÑA DE REGRESIÓN POLINOMIAL ---
         tabs = st.tabs(
             [f"📅 {m}" for m in horizonte_meses] + 
-            ["👥 Segmentación (K-Means)", "🧠 ¿Cómo funciona el sistema?"]
+            ["👥 Segmentación (K-Means)", "📈 Proyección Polinomial (Tendencia)", "🧠 ¿Cómo funciona el sistema?"]
         )
 
         for i, mes_nombre in enumerate(horizonte_meses):
@@ -452,56 +501,59 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
                         for rec in recs_actuales:
                             with st.expander(f"Justificación para: {rec['Producto Recomendado']}"):
                                 st.info(rec["Argumento Comercial (Gemini)"])
+                    else:
+                        st.info("No hay recomendaciones seguras para este periodo (Filtros de canibalización activos).")
 
                 with col_res2:
-                    st.markdown("#### 🗺️ Grafo Causal Multipartito")
-                    G = nx.DiGraph()
-                    nodo_cliente = f"Cliente {cliente_seleccionado}"
-                    G.add_node(nodo_cliente, color='#87CEFA', size=3500, layer=0)
+                    if recs_actuales:
+                        st.markdown("#### 🗺️ Grafo Causal Multipartito")
+                        G = nx.DiGraph()
+                        nodo_cliente = f"Cliente {cliente_seleccionado}"
+                        G.add_node(nodo_cliente, color='#87CEFA', size=3500, layer=0)
 
-                    items_a_mostrar = set(historial_nombres_reales[-5:])
-                    for rec in recs_actuales:
-                        if rec['Detonante_Grafo'] != "Perfil de su Cluster":
-                            items_a_mostrar.add(rec['Detonante_Grafo'])
+                        items_a_mostrar = set(historial_nombres_reales[-5:])
+                        for rec in recs_actuales:
+                            if rec['Detonante_Grafo'] != "Perfil de su Cluster":
+                                items_a_mostrar.add(rec['Detonante_Grafo'])
 
-                    for item in items_a_mostrar:
-                        # CORRECCIÓN VITAL 3: Diferenciar visualmente los detonantes históricos de los proyectados
-                        if item in historial_nombres_reales:
-                            G.add_node(item, color='#98FB98', size=2200, layer=1) # Verde: Historial Real
-                            G.add_edge(nodo_cliente, item, label="Historial", style='solid', color='gray')
-                        else:
-                            G.add_node(item, color='#FFD700', size=2200, layer=1) # Amarillo: Detonante de Cascada
-                            G.add_edge(nodo_cliente, item, label="Proyección Previa", style='dotted', color='orange')
+                        for item in items_a_mostrar:
+                            if item in historial_nombres_reales:
+                                G.add_node(item, color='#98FB98', size=2200, layer=1) 
+                                G.add_edge(nodo_cliente, item, label="Historial Real", style='solid', color='gray')
+                            else:
+                                G.add_node(item, color='#FFD700', size=2200, layer=1) 
+                                G.add_edge(nodo_cliente, item, label="Proyección Previa", style='dotted', color='orange')
 
-                    for rec in recs_actuales:
-                        prod = rec['Producto Recomendado']
-                        detonante = rec['Detonante_Grafo']
-                        motor = rec['Motor Estratégico']
-                        
-                        G.add_node(prod, color='#F08080', size=2800, layer=2)
-                        G.add_edge(nodo_cliente, prod, label=motor.split(' ')[0], style='solid', color='gray')
-                        
-                        if detonante in items_a_mostrar:
-                            color_arista = "darkviolet" if "Apriori" in motor else "tomato"
-                            G.add_edge(detonante, prod, label=f"Causalidad {motor.split(' ')[0]}", style='dashed', color=color_arista)
+                        for rec in recs_actuales:
+                            prod = rec['Producto Recomendado']
+                            detonante = rec['Detonante_Grafo']
+                            motor = rec['Motor Estratégico']
+                            
+                            G.add_node(prod, color='#F08080', size=2800, layer=2)
+                            G.add_edge(nodo_cliente, prod, label=motor.split(' ')[0], style='solid', color='gray')
+                            
+                            if detonante in items_a_mostrar:
+                                # --- ACTUALIZACIÓN DE COLORES PARA EL GRAFO VISUAL EN STREAMLIT ---
+                                color_arista = "darkviolet" if "Apriori" in motor else ("tomato" if "TF-IDF" in motor else "orange")
+                                G.add_edge(detonante, prod, label=f"Causalidad {motor.split(' ')[0]}", style='dashed', color=color_arista)
 
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    pos = nx.multipartite_layout(G, subset_key="layer", align="horizontal")
-                    colores_nodos = [node[1]['color'] for node in G.nodes(data=True)]
-                    tamanos = [node[1]['size'] for node in G.nodes(data=True)]
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        pos = nx.multipartite_layout(G, subset_key="layer", align="horizontal")
+                        colores_nodos = [node[1]['color'] for node in G.nodes(data=True)]
+                        tamanos = [node[1]['size'] for node in G.nodes(data=True)]
 
-                    nx.draw_networkx_nodes(G, pos, node_color=colores_nodos, node_size=tamanos, edgecolors='dimgray', ax=ax)
-                    nx.draw_networkx_labels(G, pos, font_size=8, font_weight="bold", ax=ax)
+                        nx.draw_networkx_nodes(G, pos, node_color=colores_nodos, node_size=tamanos, edgecolors='dimgray', ax=ax)
+                        nx.draw_networkx_labels(G, pos, font_size=8, font_weight="bold", ax=ax)
 
-                    aristas_solidas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'solid']
-                    aristas_punteadas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'dashed']
-                    colores_punteadas = [G[u][v]['color'] for u, v in aristas_punteadas]
+                        aristas_solidas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] == 'solid']
+                        aristas_punteadas = [(u, v) for u, v, d in G.edges(data=True) if d['style'] in ['dashed', 'dotted']]
+                        colores_punteadas = [G[u][v]['color'] for u, v in aristas_punteadas]
 
-                    nx.draw_networkx_edges(G, pos, edgelist=aristas_solidas, edge_color="gray", arrows=True, ax=ax)
-                    nx.draw_networkx_edges(G, pos, edgelist=aristas_punteadas, edge_color=colores_punteadas, style="dashed", connectionstyle="arc3,rad=0.2", ax=ax)
-                    nx.draw_networkx_edge_labels(G, pos, edge_labels=nx.get_edge_attributes(G, 'label'), font_size=7, ax=ax)
-                    ax.axis('off')
-                    st.pyplot(fig)
+                        nx.draw_networkx_edges(G, pos, edgelist=aristas_solidas, edge_color="gray", arrows=True, ax=ax)
+                        nx.draw_networkx_edges(G, pos, edgelist=aristas_punteadas, edge_color=colores_punteadas, style="dashed", connectionstyle="arc3,rad=0.2", ax=ax)
+                        nx.draw_networkx_edge_labels(G, pos, edge_labels=nx.get_edge_attributes(G, 'label'), font_size=7, ax=ax)
+                        ax.axis('off')
+                        st.pyplot(fig)
 
         # =====================================================================
         # PESTAÑA SEGMENTACIÓN GERENCIAL
@@ -514,9 +566,75 @@ if st.button("🚀 Generar Diagnóstico y Proyección Financiera (3 Meses)", typ
                 st.scatter_chart(data=df_perfiles, x='Volumen', y='Variedad', color='Color', size='Frecuencia', height=400)
 
         # =====================================================================
-        # PESTAÑA GUÍA DIDÁCTICA
+        # NUEVA PESTAÑA: REGRESIÓN POLINOMIAL (DETERMINISMO NO LINEAL)
         # =====================================================================
         with tabs[4]:
+            st.markdown("### 📈 Análisis Matemático de Tendencia (Regresión Polinomial)")
+            st.markdown("El motor de regresión no lineal de grado 2 calcula la trayectoria exacta de la capacidad de compra del cliente a lo largo del tiempo, asegurando un pronóstico de volumen completamente **determinístico y continuo**.")
+            
+            # Agrupar las compras históricas por mes
+            if 'mes' in historial_crudo.columns and len(historial_crudo) > 0:
+                tendencia_mensual = historial_crudo.groupby('mes')['cantidad'].sum().reset_index()
+                
+                if len(tendencia_mensual) >= 3: # Necesitamos al menos 3 puntos para una curva polinomial
+                    x_hist = tendencia_mensual['mes'].values
+                    y_hist = tendencia_mensual['cantidad'].values
+                    
+                    # Calcular el polinomio de grado 2 (No lineal)
+                    coeficientes = np.polyfit(x_hist, y_hist, 2)
+                    polinomio = np.poly1d(coeficientes)
+                    
+                    # Generar puntos de la curva suave para graficar
+                    x_curva = np.linspace(x_hist.min(), x_hist.max() + 2, 100)
+                    y_curva = polinomio(x_curva)
+                    
+                    # Proyectar Mes +1 y Mes +2
+                    mes_futuro_1 = x_hist.max() + 1
+                    mes_futuro_2 = x_hist.max() + 2
+                    y_futuro_1 = max(0, int(polinomio(mes_futuro_1))) # Evitar volumen negativo
+                    y_futuro_2 = max(0, int(polinomio(mes_futuro_2)))
+                    
+                    # Renderizar gráfico de matplotlib
+                    fig_poly, ax_poly = plt.subplots(figsize=(10, 6))
+                    
+                    # Dispersión histórica
+                    ax_poly.scatter(x_hist, y_hist, color='black', s=60, label='Historial Real (Compras consolidadas del mes)', zorder=5)
+                    # Curva de Regresión
+                    ax_poly.plot(x_curva, y_curva, color='royalblue', linestyle='-', linewidth=2, label=f'Tendencia Matemática (Curva de Ajuste)', alpha=0.8)
+                    # Predicciones futuras
+                    ax_poly.scatter([mes_futuro_1, mes_futuro_2], [y_futuro_1, y_futuro_2], color='red', marker='X', s=150, label='Proyección Determinística (Capacidad Futura)', zorder=6)
+                    
+                    # Anotaciones con recuadros para mayor claridad
+                    bbox_props = dict(boxstyle="round,pad=0.3", fc="white", ec="darkred", lw=1.5, alpha=0.9)
+                    ax_poly.annotate(f"Mes +1\n{y_futuro_1} unds.", (mes_futuro_1, y_futuro_1), 
+                                     textcoords="offset points", xytext=(0,15), ha='center', color='darkred', fontweight='bold', bbox=bbox_props)
+                    ax_poly.annotate(f"Mes +2\n{y_futuro_2} unds.", (mes_futuro_2, y_futuro_2), 
+                                     textcoords="offset points", xytext=(0,15), ha='center', color='darkred', fontweight='bold', bbox=bbox_props)
+                    
+                    # Títulos y Ejes Explicativos
+                    ax_poly.set_title(f"Evaluación de Capacidad de Compra Total (Cliente ID: {cliente_seleccionado})\n", fontsize=14, fontweight='bold')
+                    ax_poly.text(0.5, 1.02, "(Nota: Este gráfico evalúa el Volumen Total Acumulado, no productos individuales)", 
+                                 horizontalalignment='center', verticalalignment='bottom', transform=ax_poly.transAxes, fontsize=10, color='dimgray', style='italic')
+                    
+                    ax_poly.set_xlabel("Secuencia de Meses Activos (Línea de Tiempo)", fontsize=11, fontweight='bold')
+                    ax_poly.set_ylabel("Volumen Total Consolidado (Suma de todas las unidades)", fontsize=11, fontweight='bold')
+                    
+                    # Leyenda mejorada
+                    ax_poly.legend(loc='upper right', frameon=True, shadow=True, title="Leyenda de Variables:", title_fontsize='9')
+                    ax_poly.grid(True, linestyle='--', alpha=0.5)
+                    
+                    st.pyplot(fig_poly)
+                    
+                    st.success(f"**Validación Matemática:** La curva extraída es $f(x) = {coeficientes[0]:.2f}x^2 + {coeficientes[1]:.2f}x + {coeficientes[2]:.2f}$. Al reemplazar la 'x' por el mes a proyectar, el sistema determina exactamente el tope de unidades sugeridas.")
+                else:
+                    st.warning("El cliente no cuenta con suficientes meses históricos (mínimo 3) para calcular una curva de regresión no lineal estadísticamente válida.")
+            else:
+                 st.warning("No hay datos de volumen en el tiempo para este cliente.")
+
+        # =====================================================================
+        # PESTAÑA GUÍA DIDÁCTICA
+        # =====================================================================
+        with tabs[5]:
             st.markdown("## ¿Cómo funciona el sistema? — Trazabilidad Matemática")
             st.caption(f"Auditoría interna de los algoritmos para el cliente **{opciones_clientes[cliente_seleccionado]}**.")
 
