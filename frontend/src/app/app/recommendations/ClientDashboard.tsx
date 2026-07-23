@@ -5,11 +5,31 @@ import { fetchWithAuth } from '../../../lib/apiClient'
 import { ListChecks, Network, TrendingUp, Cpu, PlusCircle, Terminal, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
+import ClientSelectorDropdown from '../../../components/ClientSelectorDropdown'
+import RecommendationExceptionsBanner from '../../../components/RecommendationExceptionsBanner'
+import XAIAuditCard from '../../../components/XAIAuditCard'
+import AlgorithmicFunnel from '../../../components/AlgorithmicFunnel'
+
+import GrafoCausalMultipartito from '../../../components/GrafoCausalMultipartito'
+import TopologiaRecomendacion from '../../../components/TopologiaRecomendacion'
+import SistemaSolarRecomendaciones from '../../../components/SistemaSolarRecomendaciones'
+import LupaCausalidad from '../../../components/LupaCausalidad'
+import AnalisisBrechas from '../../../components/AnalisisBrechas'
+import MatrizEstadisticaReglas from '../../../components/MatrizEstadisticaReglas'
+import AuditoriaVentaCruzada from '../../../components/AuditoriaVentaCruzada'
+import AuditoriaOportunidadesSecundarias from '../../../components/AuditoriaOportunidadesSecundarias'
+import PolynomialTrendChart from '../../../components/PolynomialTrendChart'
+
 interface ProyeccionItem {
   producto: string
   probabilidad: number
   motor: string
   justificacion: string
+  detonante?: string
+  lift?: string | number
+  confianza?: string | number
+  cantidad_sugerida?: number
+  ingreso_estimado?: number
   modelo_oculto?: string
   item_atencion?: string
   peso_atencion?: number
@@ -31,6 +51,11 @@ interface ProyeccionResponse {
     cantidad: number
   }[]
   proyecciones: Record<string, ProyeccionItem[]>
+  excepciones?: Record<string, string>
+  brechas_mercado?: any[]
+  matriz_apriori?: any[]
+  reglas_latentes?: any[]
+  tendencia_polinomial?: any
   xai_detalles?: any
 }
 
@@ -293,7 +318,11 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 pesoAtencion: item.peso_atencion,
                 motor: item.motor,
                 modeloOculto: item.modelo_oculto,
-                mes
+                mes,
+                lift: item.lift || 1.5,
+                confianza: item.confianza || item.probabilidad || 50,
+                cantidadSugerida: item.cantidad_sugerida || 10,
+                ingresoEstimado: item.ingreso_estimado || 100
               })
             });
             if (res.ok) {
@@ -445,7 +474,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   async function handleLaunchTraining() {
     setTrainingActive(true)
     setMlopsError(null)
-    setTrainingLogs(['Iniciando reentrenamiento del modelo AttentionGRU...'])
+    setTrainingLogs(['Iniciando reentrenamiento del pipeline de Machine Learning (Apriori, K-Means, Regresión)...'])
     
     try {
       const res = await fetchWithAuth('/api/model/train', { method: 'POST' })
@@ -797,15 +826,149 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                             </React.Fragment>
                           )
                         })}
-                        {(proyeccionData.proyecciones[activeMes] || []).length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="p-8 text-center bg-neutral-50 dark:bg-neutral-900/40 text-neutral-500 dark:text-neutral-400 font-medium">
-                              No hay sugerencias que superen los umbrales de seguridad para este período.
-                            </td>
-                          </tr>
-                        )}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* BANNER DE EXCEPCIÓN ALGORÍTMICA */}
+                  {(proyeccionData.excepciones?.[activeMes] || (proyeccionData.proyecciones[activeMes] || []).length === 0) && (
+                    <RecommendationExceptionsBanner
+                      mensaje={
+                        proyeccionData.excepciones?.[activeMes] ||
+                        "No se emitieron recomendaciones adicionales para este período debido a filtros de canibalización o límites deterministas."
+                      }
+                    />
+                  )}
+
+                  {/* 1. AUDITORÍA DE INTELIGENCIA EXPLICABLE (XAI) */}
+                  <div className="space-y-4 pt-2">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500">
+                      1. Auditoría de Inteligencia Explicable (XAI)
+                    </h4>
+                    {(proyeccionData.proyecciones[activeMes] || []).map((rec: any, idx: number) => (
+                      <XAIAuditCard
+                        key={idx}
+                        producto={rec.producto}
+                        motor={rec.motor}
+                        detonante={rec.detonante}
+                        cantidadSugerida={rec.cantidad_sugerida}
+                        ingresoEstimado={rec.ingreso_estimado}
+                        justificacion={rec.justificacion}
+                        probabilidad={rec.probabilidad}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 2. GRAFO CAUSAL MULTIPARTITO (CAJA DE CRISTAL) */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      2. Grafo Causal Multipartito (Caja de Cristal)
+                    </h4>
+                    <GrafoCausalMultipartito
+                      clienteId={proyeccionData.clienteId}
+                      historial={proyeccionData.historial || []}
+                      recomendaciones={proyeccionData.proyecciones[activeMes] || []}
+                    />
+                  </div>
+
+                  {/* 3. ANÁLISIS MATEMÁTICO DE TENDENCIA (REGRESIÓN POLINOMIAL) */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      3. Análisis Matemático de Tendencia (Regresión Polinomial)
+                    </h4>
+                    <PolynomialTrendChart
+                      clienteId={proyeccionData.clienteId}
+                      data={proyeccionData.tendencia_polinomial}
+                    />
+                  </div>
+
+                  {/* 4. TOPOLOGÍA DE RECOMENDACIÓN (REGLAS DE ASOCIACIÓN Y SIMILITUD) */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      4. Topología de Recomendación (Reglas de Asociación y Similitud)
+                    </h4>
+                    <TopologiaRecomendacion
+                      clienteId={proyeccionData.clienteId}
+                      historial={proyeccionData.historial || []}
+                      recomendaciones={proyeccionData.proyecciones[activeMes] || []}
+                    />
+                  </div>
+
+                  {/* 5. SISTEMA SOLAR DE RECOMENDACIONES (CAUSALIDAD EXACTA) */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      5. Sistema Solar de Recomendaciones (Causalidad Exacta)
+                    </h4>
+                    <SistemaSolarRecomendaciones
+                      clienteId={proyeccionData.clienteId}
+                      historial={proyeccionData.historial || []}
+                      recomendaciones={proyeccionData.proyecciones[activeMes] || []}
+                    />
+                  </div>
+
+                  {/* 6. LUPA DE CAUSALIDAD (TRANSPARENCIA DEL ALGORITMO) */}
+                  <div className="space-y-4 pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500">
+                      6. Lupa de Causalidad (Transparencia del Algoritmo)
+                    </h4>
+                    {(proyeccionData.proyecciones[activeMes] || []).map((rec: any, idx: number) => (
+                      <LupaCausalidad
+                        key={idx}
+                        ancla={rec.detonante || 'Historial Cliente'}
+                        sugerencia={rec.producto}
+                        lift={rec.lift || '1.5'}
+                        confianza={rec.confianza || rec.probabilidad}
+                        motor={rec.motor}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 7. ANÁLISIS DE BRECHAS: CLIENTE VS. MERCADO NACIONAL */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      7. Análisis de Brechas: Cliente vs. Mercado Nacional
+                    </h4>
+                    <AnalisisBrechas
+                      data={proyeccionData.brechas_mercado || []}
+                      clienteId={proyeccionData.clienteId}
+                    />
+                  </div>
+
+                  {/* 8. MATRIZ ESTADÍSTICA DE REGLAS DE ASOCIACIÓN (APRIORI) */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      8. Matriz Estadística de Reglas de Asociación (Apriori)
+                    </h4>
+                    <MatrizEstadisticaReglas
+                      data={proyeccionData.matriz_apriori || []}
+                      clienteId={proyeccionData.clienteId}
+                    />
+                  </div>
+
+                  {/* 9. AUDITORÍA DE VENTA CRUZADA (TRAZABILIDAD APRIORI) */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      9. Auditoría de Venta Cruzada (Trazabilidad Apriori)
+                    </h4>
+                    <AuditoriaVentaCruzada
+                      data={proyeccionData.matriz_apriori || []}
+                      clienteId={proyeccionData.clienteId}
+                    />
+                  </div>
+
+                  {/* 10. AUDITORÍA DE OPORTUNIDADES SECUNDARIAS */}
+                  <div className="pt-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
+                      10. Auditoría de Oportunidades Secundarias
+                    </h4>
+                    <AuditoriaOportunidadesSecundarias
+                      data={proyeccionData.reglas_latentes || []}
+                    />
+                  </div>
+
+                  {/* EMBUDO DEL PIPELINE */}
+                  <div className="pt-6">
+                    <AlgorithmicFunnel />
                   </div>
                 </div>
 
@@ -1312,59 +1475,7 @@ RECOMENDACIÓN FINAL AL VISITADOR MÉDICO`}
                   )}
                 </div>
 
-                {/* COMPARATIVA DE PRODUCTOS DEL MIX RECOMENDADO */}
-                <div className="w-full space-y-6 animate-fadeIn">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-2 h-6 bg-amber-500 rounded-sm shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
-                    <svg className="w-6 h-6 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                      Comparativa Analítica
-                    </h4>
-                  </div>
 
-                  <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
-                    <table className="w-full text-left border-collapse table-auto">
-                      <thead>
-                        <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Producto Sugerido</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase text-center w-32">Probabilidad</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Detonador / Ancla</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase text-center w-28">Peso Relevancia</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Estrategia Asignada</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-neutral-950/40 divide-y divide-neutral-200 dark:divide-neutral-800/60">
-                        {(proyeccionData.proyecciones[activeMes] || []).map((rec, idx) => (
-                          <tr key={`comp-${idx}`} className="hover:bg-neutral-100/30 dark:hover:bg-neutral-800/30 transition-colors">
-                            <td className="p-3 md:p-4 font-bold text-neutral-950 dark:text-white text-xs md:text-sm">
-                              {rec.producto}
-                            </td>
-                            <td className="p-3 md:p-4 text-center">
-                              <span className="text-[10px] md:text-xs font-black px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
-                                {rec.probabilidad}%
-                              </span>
-                            </td>
-                            <td className="p-3 md:p-4 font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
-                              {rec.item_atencion || 'N/A'}
-                            </td>
-                            <td className="p-3 md:p-4 text-center">
-                              <span className="text-xs font-mono font-bold text-neutral-800 dark:text-neutral-200">
-                                {rec.peso_atencion}%
-                              </span>
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <span className="text-[9px] md:text-[10px] font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm whitespace-nowrap">
-                                {rec.motor}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
 
                 {/* HISTORIAL DE CONSUMO TRANSACCIONAL */}
                 <div className="w-full space-y-6">
@@ -1432,134 +1543,7 @@ RECOMENDACIÓN FINAL AL VISITADOR MÉDICO`}
                   </div>
                 </div>
 
-                {/* MAPA XAI */}
-                <div className="w-full space-y-6">
-                  <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-2 h-6 bg-blue-500 rounded-sm shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                      <Network className="w-6 h-6 text-blue-500 dark:text-blue-400" />
-                      <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                        Grafo (XAI)
-                      </h4>
-                    </div>
-                  </div>
 
-                  <div className="relative rounded-3xl bg-white dark:bg-neutral-950/80 border border-neutral-200 dark:border-neutral-800/80 overflow-hidden shadow-2xl p-4 min-h-[500px] flex items-center justify-center transition-colors">
-                    {/* Floating XAI Label (Absolutely positioned to guarantee ZERO layout shifts) */}
-                    <div className="absolute top-6 right-6 z-20 pointer-events-none">
-                      <span className={`text-xs font-black tracking-widest uppercase bg-neutral-100/90 dark:bg-neutral-900/90 backdrop-blur-md text-emerald-600 dark:text-emerald-400 border border-neutral-200 dark:border-neutral-800 px-4 py-2 rounded-full shadow-2xl transition-all duration-300 whitespace-nowrap ${hoveredEnlace ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-2 scale-95'}`}>
-                        {lastActiveLabel}
-                      </span>
-                    </div>
-
-                    <svg viewBox="0 0 780 480" className="w-full h-full max-h-[500px]">
-                      <defs>
-                        <marker
-                          id="arrow"
-                          viewBox="0 0 10 10"
-                          refX="22"
-                          refY="5"
-                          markerWidth="6"
-                          markerHeight="6"
-                          orient="auto-start-reverse"
-                        >
-                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#4b5563" />
-                        </marker>
-                      </defs>
-
-                      {/* Enlaces */}
-                      {enlaces.map((enlace, idx) => {
-                        const isHovered = hoveredEnlace === enlace
-                        const isApriori = enlace.type === 'apriori'
-                        return (
-                          <g key={`link-${idx}`}>
-                            <line
-                              x1={enlace.x1}
-                              y1={enlace.y1}
-                              x2={enlace.x2}
-                              y2={enlace.y2}
-                              stroke={isApriori ? '#ef4444' : isHovered ? '#10b981' : '#a3a3a3'}
-                              className="dark:stroke-neutral-800 text-neutral-400 dark:text-neutral-700"
-                              strokeWidth={isHovered ? 3 : isApriori ? 2 : 1.5}
-                              strokeDasharray={isApriori ? '6,6' : '0'}
-                              markerEnd="url(#arrow)"
-                            />
-                            <line
-                              x1={enlace.x1}
-                              y1={enlace.y1}
-                              x2={enlace.x2}
-                              y2={enlace.y2}
-                              stroke="transparent"
-                              strokeWidth={16}
-                              className="cursor-crosshair"
-                              onMouseEnter={() => setHoveredEnlace(enlace)}
-                              onMouseLeave={() => setHoveredEnlace(prev => prev === enlace ? null : prev)}
-                            />
-                          </g>
-                        )
-                      })}
-
-                      {/* Nodos */}
-                      {nodos.map((nodo, idx) => {
-                        let nodeColor = '#3b82f6'
-                        let strokeColor = '#2563eb'
-                        
-                        if (nodo.type === 'historial') {
-                          nodeColor = '#10b981'
-                          strokeColor = '#059669'
-                        }
-                        if (nodo.type === 'proyeccion') {
-                          nodeColor = '#f59e0b'
-                          strokeColor = '#d97706'
-                        }
-
-                        return (
-                          <g key={`node-${idx}`} className="group cursor-pointer">
-                            <circle
-                              cx={nodo.x}
-                              cy={nodo.y}
-                              r={nodo.type === 'cliente' ? 18 : 12}
-                              fill={nodeColor}
-                              stroke={strokeColor}
-                              strokeWidth="2"
-                              className="transition-transform duration-300 shadow-2xl hover:scale-125 cursor-pointer"
-                              style={{ transformOrigin: `${nodo.x}px ${nodo.y}px` }}
-                            />
-                            <text
-                              x={nodo.x}
-                              y={(nodo.y || 0) - (nodo.type === 'cliente' ? 28 : 22)}
-                              textAnchor="middle"
-                              fontSize={11}
-                              fontWeight="bold"
-                              className="fill-neutral-800 dark:fill-neutral-200 pointer-events-none select-none drop-shadow-md font-sans opacity-90 transition-all"
-                            >
-                              {nodo.label}
-                            </text>
-                          </g>
-                        )
-                      })}
-                    </svg>
-
-                    <div className="absolute bottom-6 left-6 right-6 flex justify-between bg-neutral-100/90 dark:bg-neutral-900/95 backdrop-blur-xl p-4 rounded-2xl border border-neutral-200 dark:border-neutral-700/50 text-[10px] sm:text-xs font-black tracking-widest text-neutral-600 dark:text-neutral-300 uppercase shadow-2xl transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]"></span>
-                        <span>Cliente Base</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]"></span>
-                        <span>Historial</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)]"></span>
-                        <span>Proyección IA</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 border-t-[3px] border-dashed border-red-500 h-0"></span>
-                        <span>Afinidad Apriori</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 {/* DIAGNÓSTICO DE VIABILIDAD: NUEVOS LANZAMIENTOS (TF-IDF) */}
                 {proyeccionData.xai_detalles?.hay_productos_nuevos && proyeccionData.xai_detalles?.recs_nuevos_cliente && proyeccionData.xai_detalles.recs_nuevos_cliente.length > 0 && (
@@ -2010,12 +1994,12 @@ RECOMENDACIÓN FINAL AL VISITADOR MÉDICO`}
             <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
               <Cpu className="w-6 h-6 text-emerald-500" />
               <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
-                Reentrenar Modelo AttentionGRU
+                Ejecutar Pipeline de Machine Learning
               </h3>
             </div>
 
             <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
-              Dispara el ciclo de entrenamiento MLOps para incorporar las nuevas ventas, clientes y optimizaciones al modelo neuronal de recomendación secuencial <strong>AttentionGRU</strong>. Esto regenerará el archivo de pesos <code>modelo_sophia_final.pt</code> y mejorará el Hit Rate global.
+              Dispara el ciclo de procesamiento MLOps para incorporar las nuevas ventas y clientes a los algoritmos de <strong>Reglas de Asociación Apriori</strong>, <strong>Clustering K-Means</strong> y <strong>Regresión Polinomial</strong>.
             </p>
 
             {mlopsError && (
@@ -2027,7 +2011,7 @@ RECOMENDACIÓN FINAL AL VISITADOR MÉDICO`}
 
             <div className="flex flex-col md:flex-row items-center gap-6 justify-between bg-neutral-50 dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 mb-8">
               <div className="space-y-1 text-center md:text-left">
-                <h4 className="font-bold text-neutral-900 dark:text-white text-base">Estado del Modelo Neuronal</h4>
+                <h4 className="font-bold text-neutral-900 dark:text-white text-base">Estado del Motor de Machine Learning</h4>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   {trainingActive ? 'Activo: Entrenando modelo en segundo plano...' : 'Inactivo: Esperando comando de reentrenamiento.'}
                 </p>
