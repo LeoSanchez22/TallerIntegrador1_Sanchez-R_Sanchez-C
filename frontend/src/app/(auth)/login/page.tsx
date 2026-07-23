@@ -49,10 +49,10 @@ export default function Login() {
             <img src="/logo-sophia-color.png" alt="Logo" className="h-12 w-auto object-contain" />
           </div>
           <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-400 mb-6 leading-tight">
-            Análisis de Demanda Farmacéutica con Deep Learning
+            Análisis de Demanda Farmacéutica con Machine Learning
           </h2>
           <p className="text-md text-neutral-400 leading-relaxed">
-            Predicciones de alta fidelidad basadas en Attention-Gru y sistemas expertos de recomendación (XAI) para la optimización comercial.
+            Predicciones de alta fidelidad basadas en Reglas de Asociación Apriori, Segmentación K-Means y Regresión Polinomial (XAI) para la optimización comercial.
           </p>
         </div>
         <div className="text-xs text-neutral-600">
