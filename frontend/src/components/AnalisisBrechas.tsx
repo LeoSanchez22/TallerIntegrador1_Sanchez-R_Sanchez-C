@@ -18,9 +18,9 @@ export default function AnalisisBrechas({ data, clienteId }: AnalisisBrechasProp
   if (!data || data.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-neutral-900 p-4 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
       <div>
-        <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+        <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white">
           Análisis de Brechas: Cliente vs. Mercado Nacional
         </h3>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -30,9 +30,9 @@ export default function AnalisisBrechas({ data, clienteId }: AnalisisBrechasProp
 
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 15, left: 10, bottom: 5 }}>
             <XAxis type="number" unit="%" stroke="#888888" fontSize={11} />
-            <YAxis type="category" dataKey="producto" stroke="#888888" fontSize={10} width={90} />
+            <YAxis type="category" dataKey="producto" stroke="#888888" fontSize={10} width={80} />
             <Tooltip
               contentStyle={{
                 backgroundColor: '#171717',
@@ -53,14 +53,14 @@ export default function AnalisisBrechas({ data, clienteId }: AnalisisBrechasProp
         </ResponsiveContainer>
       </div>
 
-      <div className="flex items-center justify-center gap-6 pt-2 text-xs font-semibold">
+      <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 pt-2 text-xs font-semibold">
         <div className="flex items-center gap-2">
           <div className="w-3.5 h-3.5 rounded-full bg-[#2e7d32]" />
-          <span className="text-neutral-600 dark:text-neutral-400">✅ Ya lo consume (Catálogo Cubierto)</span>
+          <span className="text-neutral-600 dark:text-neutral-400">✅ Ya lo consume</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3.5 h-3.5 rounded-full bg-[#f27a54]" />
-          <span className="text-neutral-600 dark:text-neutral-400">🎯 Oportunidad Causal (Brecha a cerrar)</span>
+          <span className="text-neutral-600 dark:text-neutral-400">🎯 Oportunidad Causal</span>
         </div>
       </div>
     </div>

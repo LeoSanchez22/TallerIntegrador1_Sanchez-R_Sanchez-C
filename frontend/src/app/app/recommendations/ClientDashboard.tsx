@@ -111,7 +111,6 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [selectedLanzamientoSim, setSelectedLanzamientoSim] = useState<string>('')
   const [similitudData, setSimilitudData] = useState<any[]>([])
   const [loadingSim, setLoadingSim] = useState(false)
-  const [showXaiGuide, setShowXaiGuide] = useState(false)
 
   useEffect(() => {
     if (hoveredEnlace?.label) {
@@ -588,103 +587,65 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   return (
     <div className="space-y-8">
       {/* TABS DE SECCIÓN PREMIUM */}
-      <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-px gap-2 overflow-x-auto">
+      <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-px gap-1 sm:gap-2 overflow-x-auto custom-scrollbar no-scrollbar">
         <button
           onClick={() => setActiveTab('inference')}
-          className={`flex items-center gap-2 py-4 px-6 text-sm font-black uppercase tracking-wider border-b-2 transition-all ${
+          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
             activeTab === 'inference'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
-          <Network className="w-4 h-4" />
-          Recomendaciones & XAI
+          <Network className="w-4 h-4 flex-shrink-0" />
+          <span>Recomendaciones & XAI</span>
         </button>
         <button
           onClick={() => setActiveTab('register')}
-          className={`flex items-center gap-2 py-4 px-6 text-sm font-black uppercase tracking-wider border-b-2 transition-all ${
+          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
             activeTab === 'register'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
-          <PlusCircle className="w-4 h-4" />
-          Registrar Lanzamiento
+          <PlusCircle className="w-4 h-4 flex-shrink-0" />
+          <span>Registrar Lanzamiento</span>
         </button>
         <button
           onClick={() => setActiveTab('mlops')}
-          className={`flex items-center gap-2 py-4 px-6 text-sm font-black uppercase tracking-wider border-b-2 transition-all ${
+          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
             activeTab === 'mlops'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
-          <Cpu className="w-4 h-4" />
-          Mantenimiento & MLOps
+          <Cpu className="w-4 h-4 flex-shrink-0" />
+          <span>Mantenimiento & MLOps</span>
         </button>
       </div>
 
       {/* CONTENIDO TAB 1: INFERENCIAS */}
       {activeTab === 'inference' && (
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 items-start">
           {/* CONTROL PANEL */}
           <aside className="w-full lg:w-[320px] flex-shrink-0">
-            <div className="sticky top-8 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl transition-all duration-200">
-              <div className="flex items-center space-x-3 mb-8 pb-4 border-b border-neutral-200 dark:border-neutral-800">
-                <div className="w-3 h-8 bg-emerald-500 rounded-sm"></div>
-                <h2 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
+            <div className="sticky top-20 sm:top-24 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl transition-all duration-200">
+              <div className="flex items-center space-x-3 mb-6 sm:mb-8 pb-3 sm:pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="w-2.5 h-6 sm:w-3 sm:h-8 bg-emerald-500 rounded-sm"></div>
+                <h2 className="text-lg sm:text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
                   Filtros
                 </h2>
               </div>
               
               <div className="space-y-6">
-                <div>
-                  <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-3">
-                    Zona Comercial
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedZona}
-                      onChange={(e) => setSelectedZona(e.target.value)}
-                      className="appearance-none w-full px-4 py-4 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
-                    >
-                      {zonas.map((zona) => (
-                        <option key={zona} value={zona} className="bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white">
-                          {zona}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-3">
-                    Institución / Clínica
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedCliente || ''}
-                      onChange={(e) => setSelectedCliente(Number(e.target.value))}
-                      className="appearance-none w-full px-4 py-4 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
-                    >
-                      {clientesDeZona.map((c) => (
-                        <option key={c.id} value={c.id} className="bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white">
-                          ID: {c.id} - {c.name.slice(0, 30)}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
+                <ClientSelectorDropdown
+                  zonas={zonas}
+                  selectedZona={selectedZona}
+                  onSelectZona={setSelectedZona}
+                  clientes={clientesDeZona}
+                  selectedCliente={selectedCliente}
+                  onSelectCliente={setSelectedCliente}
+                />
+              </div>
 
                 <button
                   onClick={generarProyecciones}
@@ -701,7 +662,6 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   )}
                 </button>
               </div>
-            </div>
           </aside>
 
           {/* MAIN INFERENCE VIEW */}
@@ -972,508 +932,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   </div>
                 </div>
 
-                {/* GUÍA PASO A PASO EXPLICATIVA (COMO PARA BRUTOS) */}
-                <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl transition-all duration-200">
-                  <button
-                    onClick={() => setShowXaiGuide(!showXaiGuide)}
-                    className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 rounded-2xl transition-all text-left"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-neutral-950 text-xl font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                        💡
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-black tracking-wide uppercase text-neutral-900 dark:text-white">
-                          ¿Cómo funciona el sistema?
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold mt-1">
-                          Guía paso a paso detallada con datos reales de esta simulación
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest border border-emerald-500/30 px-4 py-2 rounded-full">
-                      {showXaiGuide ? 'Ocultar Guía Paso a Paso' : 'Ver Guía Paso a Paso'}
-                    </span>
-                  </button>
 
-                  {showXaiGuide && proyeccionData.xai_detalles && (
-                    <div className="mt-8 space-y-8 animate-fadeIn">
-                      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-                        <h3 className="text-xl font-black text-neutral-950 dark:text-white uppercase tracking-wider">
-                          Guía Paso a Paso de Sophia AI
-                        </h3>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold mt-1">
-                          Esta explicación desglosa el pipeline matemático del modelo usando los datos reales de este cliente en la zona {proyeccionData.zona}.
-                        </p>
-                      </div>
-
-                      {/* PASO 0 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 0 · Estado actual del cliente
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                          <div className="p-4 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-center">
-                            <div className="text-[10px] font-black uppercase text-neutral-500">Total de compras históricas</div>
-                            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1">
-                              {proyeccionData.xai_detalles.total_compras_historicas}
-                            </div>
-                          </div>
-                          <div className="p-4 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-center">
-                            <div className="text-[10px] font-black uppercase text-neutral-500">Productos distintos comprados</div>
-                            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1">
-                              {proyeccionData.xai_detalles.productos_distintos}
-                            </div>
-                          </div>
-                          <div className="p-4 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-center">
-                            <div className="text-[10px] font-black uppercase text-neutral-500">Motor activado</div>
-                            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 text-xs uppercase pt-2">
-                              {proyeccionData.xai_detalles.motor_activo}
-                            </div>
-                          </div>
-                        </div>
-
-                        {proyeccionData.xai_detalles.es_cold_start ? (
-                          <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-2xl text-xs font-semibold leading-relaxed">
-                            ⚠️ <strong>Cliente con historial escaso ({proyeccionData.xai_detalles.total_compras_historicas} registros).</strong><br/>
-                            El sistema necesita mínimo 3 compras para activar la red neuronal. Por eso se usó el motor de <strong>Popularidad Zonal</strong>: se recomiendan los productos más vendidos entre todas las clínicas de la misma zona como punto de partida seguro.
-                          </div>
-                        ) : (
-                          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-semibold leading-relaxed">
-                            ✅ <strong>Cliente con historial suficiente ({proyeccionData.xai_detalles.total_compras_historicas} registros).</strong><br/>
-                            La red neuronal <strong>Attention-GRU</strong> está activa. Continúa leyendo para entender exactamente qué hizo con esos datos.
-                          </div>
-                        )}
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 1 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 1 · ¿Qué datos entran al sistema?
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Antes de calcular cualquier recomendación, el sistema convierte el historial de compras en una <strong>secuencia ordenada de IDs numéricos</strong>. A la red neuronal no le importan los nombres; trabaja con números. La ventana activa es de <strong>máximo 10 compras</strong> (las más recientes).
-                        </p>
-                        
-                        {proyeccionData.xai_detalles.secuencia_entrada && proyeccionData.xai_detalles.secuencia_entrada.length > 0 ? (
-                          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 w-full">
-                            <table className="w-full text-left border-collapse table-auto text-xs">
-                              <thead>
-                                <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider w-1/4">Posición</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider w-1/4 text-center">ID numérico (tensor)</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider">Nombre del producto</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                {proyeccionData.xai_detalles.secuencia_entrada.map((row, index) => (
-                                  <tr key={index} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40">
-                                    <td className="p-3 font-bold">{row.posicion}</td>
-                                    <td className="p-3 text-center font-mono">{row.id}</td>
-                                    <td className="p-3 font-medium uppercase">{row.nombre}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-neutral-500 italic">No hay historial disponible para mostrar la secuencia.</div>
-                        )}
-                        <p className="text-[10px] text-neutral-400 font-semibold">
-                          🔎 <strong>¿Por qué solo 10?</strong> Compras más antiguas influenciaron el entrenamiento del modelo, pero la predicción en vivo solo usa la ventana reciente.
-                        </p>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 2 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 2 · Capa de Embedding — Traducir IDs a vectores de significado
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Cada ID numérico es una etiqueta sin valor matemático. La capa <strong>Embedding</strong> convierte cada ID en un vector de números reales que representan características latentes: categoría terapéutica, frecuencia histórica, relación con otros productos. <strong>El modelo aprende estos vectores durante el entrenamiento; no son reglas escritas a mano.</strong>
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                          <div className="p-4 bg-blue-500/5 dark:bg-blue-500/10 border border-blue-500/20 rounded-2xl">
-                            <h5 className="text-xs font-black uppercase text-blue-500 tracking-wider">Item Embedding</h5>
-                            <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-2">
-                              Cada producto se proyecta a un vector de <strong>64 números</strong> continuos de características clínicas.
-                            </p>
-                          </div>
-                          <div className="p-4 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
-                            <h5 className="text-xs font-black uppercase text-emerald-500 tracking-wider">Cliente Embedding</h5>
-                            <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-2">
-                              Cada cliente se mapea a un vector de <strong>32 números</strong> que describe su perfil clínico e institucional.
-                            </p>
-                          </div>
-                          <div className="p-4 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                            <h5 className="text-xs font-black uppercase text-amber-500 tracking-wider">Mes Embedding</h5>
-                            <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-2">
-                              Cada mes se traduce en un vector de <strong>16 números</strong> que captura la estacionalidad terapéutica regional.
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                          Los tres vectores se <strong>concatenan</strong> en un vector consolidado de <strong>112 dimensiones</strong> por paso de tiempo para procesar la secuencia completa.
-                        </p>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 3 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 3 · Red GRU — Detectar el orden y la temporalidad
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          La <strong>GRU (Gated Recurrent Unit)</strong> lee la secuencia de izquierda a derecha, <strong>recordando lo que pasó antes</strong>. No es lo mismo comprar A → B → C que C → B → A. La GRU captura esa diferencia de comportamiento.
-                        </p>
-                        {proyeccionData.xai_detalles.secuencia_nombres_gru ? (
-                          <div className="space-y-2">
-                            <span className="text-xs text-neutral-500 dark:text-neutral-400 font-black uppercase tracking-wider">Secuencia de las últimas compras leídas por la GRU:</span>
-                            <div className="p-4 bg-neutral-950 border border-neutral-800 text-emerald-400 font-mono text-xs rounded-xl overflow-x-auto whitespace-nowrap">
-                              {proyeccionData.xai_detalles.secuencia_nombres_gru}
-                            </div>
-                          </div>
-                        ) : null}
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Internamente la GRU tiene <strong>2 capas recurrentes apiladas</strong> con un tamaño oculto de <strong>128 neuronas</strong>, permitiendo modelar interdependencias complejas.
-                        </p>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 4 */}
-                      <div className="space-y-6">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 4 · Mecanismo de Atención — ¿Qué compra influyó más?
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Después de que la GRU procesa la secuencia, la capa de <strong>Atención</strong> asigna un porcentaje de importancia a cada paso de tiempo. Esto permite saber <strong>cuál compra específica detonó la recomendación</strong>.
-                        </p>
-
-                        {proyeccionData.xai_detalles.pesos_atencion && proyeccionData.xai_detalles.pesos_atencion.length > 0 ? (
-                          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 w-full text-xs">
-                            <table className="w-full text-left border-collapse table-auto">
-                              <thead>
-                                <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider w-1/4">Posición</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider">Producto comprado</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider text-center w-32">Peso de atención</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 tracking-wider w-32 text-center">Influencia</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                {proyeccionData.xai_detalles.pesos_atencion.map((row, index) => (
-                                  <tr key={index} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40">
-                                    <td className="p-3 font-bold">{row.posicion}</td>
-                                    <td className="p-3 font-semibold uppercase">{row.producto}</td>
-                                    <td className="p-3 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400">{row.peso}</td>
-                                    <td className="p-3 text-center">
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                                        row.influencia.includes('Principal')
-                                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                          : row.influencia.includes('Alta')
-                                          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                                          : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-500'
-                                      }`}>
-                                        {row.influencia}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-neutral-500 italic">La atención solo se activa con el motor GRU (historial ≥ 3 compras).</div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                          <div className="space-y-4">
-                            <span className="text-xs font-black uppercase text-neutral-500 tracking-wider">Productos que este cliente ya compra frecuentemente:</span>
-                            {proyeccionData.xai_detalles.productos_frecuentes_display && proyeccionData.xai_detalles.productos_frecuentes_display.length > 0 ? (
-                              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 w-full text-xs">
-                                <table className="w-full text-left border-collapse table-auto">
-                                  <thead>
-                                    <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                                      <th className="p-2 font-black uppercase text-neutral-500 w-1/2">Producto</th>
-                                      <th className="p-2 font-black uppercase text-neutral-500 text-center w-20">Unidades</th>
-                                      <th className="p-2 font-black uppercase text-neutral-500 text-center">¿Recomendado?</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                    {proyeccionData.xai_detalles.productos_frecuentes_display.map((row, index) => (
-                                      <tr key={index}>
-                                        <td className="p-2 font-bold uppercase">{row.producto}</td>
-                                        <td className="p-2 text-center font-semibold">{row.unidades}</td>
-                                        <td className="p-2 text-center">
-                                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                            row.recomendado.includes('Sí')
-                                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                              : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                                          }`}>
-                                            {row.recomendado.split(' — ')[0]}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-neutral-500 italic">No hay registros de compras frecuentes.</div>
-                            )}
-                          </div>
-
-                          <div className="p-5 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-3xl flex flex-col justify-center">
-                            <h5 className="text-xs font-black uppercase tracking-wider text-neutral-800 dark:text-neutral-200 mb-2">¿Por qué el sistema NO recomienda lo que ya compran?</h5>
-                            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed font-semibold">
-                              El sistema tiene un <strong>objetivo de expansión de cartera</strong>, no de confirmación de compras habituales. Recomendar lo que ya se adquiere de forma predecible es redundante para el visitador médico.<br/><br/>
-                              Solo el <strong>{proyeccionData.xai_detalles.catalog_coverage.pct_cubierto}% del catálogo</strong> se le ha vendido históricamente a este cliente. El sistema apunta al <strong>{proyeccionData.xai_detalles.catalog_coverage.pct_restante}% restante</strong> que tiene potencial de adopción.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 4.5 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 4.5 · Motor NCF — ¿Con quién lo comparamos exactamente?
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Para no ser una "Caja Negra", el sistema expone el origen de las sugerencias de Venta Cruzada. Se calcula la distancia en el <strong>Espacio Latente (32 dimensiones)</strong> y encuentra a las <strong>5 clínicas gemelas</strong> a nivel nacional con el comportamiento de compra más similar. Lo que ellos compran y este cliente aún no, es lo que la IA sugiere.
-                        </p>
-
-                        {proyeccionData.xai_detalles.gemelos_ncf_ui && proyeccionData.xai_detalles.gemelos_ncf_ui.length > 0 ? (
-                          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 w-full text-xs">
-                            <table className="w-full text-left border-collapse table-auto">
-                              <thead>
-                                <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                                  <th className="p-3 font-black uppercase text-neutral-500">Clínica Gemela</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 text-center w-28">Zona</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500 text-center w-36">Similitud (ADN)</th>
-                                  <th className="p-3 font-black uppercase text-neutral-500">Qué suelen comprar</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                {proyeccionData.xai_detalles.gemelos_ncf_ui.map((row, index) => (
-                                  <tr key={index} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40">
-                                    <td className="p-3 font-bold uppercase">{row.clinica_gemela}</td>
-                                    <td className="p-3 text-center">{row.zona}</td>
-                                    <td className="p-3 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{row.similitud}</td>
-                                    <td className="p-3 font-medium text-neutral-600 dark:text-neutral-400 uppercase">{row.suele_comprar}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-neutral-500 italic">No se pudo calcular la matriz de gemelos para este cliente.</div>
-                        )}
-                        <p className="text-[10px] text-blue-500 font-bold leading-snug">
-                          💡 <strong>Nota Estratégica:</strong> Observe la columna 'Zona'. La Plataforma de Inteligencia Artificial es capaz de cruzar información con clínicas de territorios distintos. Descubre que el comportamiento clínico para recetar un fármaco trasciende la geografía.
-                        </p>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 5 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 5 · Salida del modelo y filtros comerciales
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          La GRU y el NCF generan un ranking matemático puro. Éste pasa por filtros de negocio calculados dinámicamente desde la base de datos de stock regional y las reglas del catálogo.
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                          <div className="p-4 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center">
-                            <h5 className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Filtro 1: Stock Zonal</h5>
-                            <p className="text-xs font-bold text-red-500 mt-2 uppercase">
-                              {proyeccionData.xai_detalles.quiebres_zona.length > 0
-                                ? `Bloqueados: ${proyeccionData.xai_detalles.quiebres_zona.join(', ')}`
-                                : 'Stock OK - Sin quiebres activos'}
-                            </p>
-                          </div>
-                          <div className="p-4 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center">
-                            <h5 className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Filtro 2: Canibalización</h5>
-                            <p className="text-xs font-semibold text-amber-500 mt-2">
-                              {proyeccionData.xai_detalles.canibalizacion_activa.length > 0
-                                ? `${proyeccionData.xai_detalles.canibalizacion_activa.slice(0, 2).join(', ')} ...`
-                                : 'Sin riesgos activos'}
-                            </p>
-                          </div>
-                          <div className="p-4 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center">
-                            <h5 className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Filtro 3: Productos Nuevos</h5>
-                            <p className="text-xs font-semibold text-blue-500 mt-2">
-                              {proyeccionData.xai_detalles.hay_productos_nuevos
-                                ? 'Inyectando nuevos lanzamientos por afinidad'
-                                : 'Ninguno activo'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <span className="block text-xs font-black uppercase text-neutral-500 tracking-wider mt-4">Resultado para el Mes Actual — ranking final después de filtros:</span>
-                        {proyeccionData.xai_detalles.ranking_filtrado_mes0 && proyeccionData.xai_detalles.ranking_filtrado_mes0.length > 0 ? (
-                          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 w-full text-xs">
-                            <table className="w-full text-left border-collapse table-auto">
-                              <thead>
-                                <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                                  <th className="p-2 font-black uppercase text-neutral-500 w-16 text-center font-mono">Pos</th>
-                                  <th className="p-2 font-black uppercase text-neutral-500">Producto</th>
-                                  <th className="p-2 font-black uppercase text-neutral-500 text-center w-40">¿Ya lo compra?</th>
-                                  <th className="p-2 font-black uppercase text-neutral-500 text-center w-28">Puntaje</th>
-                                  <th className="p-2 font-black uppercase text-neutral-500">Motor de Origen</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                {proyeccionData.xai_detalles.ranking_filtrado_mes0.map((row, index) => (
-                                  <tr key={index} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/40">
-                                    <td className="p-2 text-center font-mono font-bold">{row.posicion}</td>
-                                    <td className="p-2 font-bold uppercase">{row.producto}</td>
-                                    <td className="p-2 text-center font-semibold">{row.ya_compra}</td>
-                                    <td className="p-2 text-center font-mono text-emerald-600 dark:text-emerald-400 font-bold">{row.score}%</td>
-                                    <td className="p-2 font-medium text-neutral-500">{row.motor}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 6 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 6 · Motor de Contenido — Recomendar sin historial de ventas
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Cuando Sophia lanza un producto nuevo, la red GRU no lo conoce porque nunca apareció en el entrenamiento. El <strong>Motor TF-IDF</strong> resuelve esto cruzando el corpus clínico de composición, principios activos e indicación terapéutica y calculando su similitud de cosenos.
-                        </p>
-                        {proyeccionData.xai_detalles.hay_productos_nuevos && proyeccionData.xai_detalles.productos_nuevos_activos.length > 0 ? (
-                          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-semibold leading-relaxed uppercase">
-                            ✅ <strong>Productos nuevos activos en el catálogo:</strong> {proyeccionData.xai_detalles.productos_nuevos_activos.join(', ')}.
-                          </div>
-                        ) : (
-                          <div className="text-xs text-neutral-500 italic">No hay productos nuevos registrados en este momento.</div>
-                        )}
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 7 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 7 · Proyección a 3 meses — El horizonte temporal
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          Las proyecciones futuras simulan escenarios autorregresivos: asumen el éxito de cierre del mes anterior y realimentan al modelo con la nueva secuencia hipotética.
-                        </p>
-                        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-white dark:bg-neutral-950 w-full text-xs">
-                          <table className="w-full text-left border-collapse table-auto">
-                            <thead>
-                              <tr className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-                                <th className="p-3 font-black uppercase text-neutral-500 w-1/4">Mes</th>
-                                <th className="p-3 font-black uppercase text-neutral-500">¿Qué usa como entrada?</th>
-                                <th className="p-3 font-black uppercase text-neutral-500 text-center w-36">Confianza</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                              <tr>
-                                <td className="p-3 font-bold">Mes Actual</td>
-                                <td className="p-3 font-medium">Historial real del cliente (compras confirmadas en Supabase)</td>
-                                <td className="p-3 text-center text-emerald-500 font-bold">🟢 Alta — Datos Reales</td>
-                              </tr>
-                              <tr>
-                                <td className="p-3 font-bold">Mes +1</td>
-                                <td className="p-3 font-medium">Historial real + recomendación #1 del Mes Actual (asumida como venta exitosa)</td>
-                                <td className="p-3 text-center text-amber-500 font-bold">🟡 Media — Autorregresivo</td>
-                              </tr>
-                              <tr>
-                                <td className="p-3 font-bold">Mes +2</td>
-                                <td className="p-3 font-medium">Historial real + recomendaciones de Mes Actual y Mes +1 (asumidas como exitosas)</td>
-                                <td className="p-3 text-center text-red-500 font-bold">🔴 Escenario Optimista</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* PASO 8 */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">
-                          Paso 8 · Motor XAI con Gemini — Del puntaje al argumento
-                        </h4>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold leading-relaxed">
-                          La probabilidad numérica (0.87, 0.63) no tiene valor para el visitador médico. Las recomendaciones se envían a la IA de <strong>Google Gemini</strong> con el contexto matemático exacto, traduciéndose en argumentos listos para usar en la visita médica.
-                        </p>
-                        <div className="space-y-3 pt-2">
-                          {(proyeccionData.proyecciones[activeMes] || []).map((rec, idx) => (
-                            <div key={idx} className="p-4 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                              <div className="text-xs font-black uppercase text-neutral-800 dark:text-neutral-200 mb-1">{rec.producto} ({rec.motor})</div>
-                              <div className="text-xs italic text-neutral-500 dark:text-neutral-400 mb-2">Motor de predicción: {rec.modelo_oculto || 'Attention-Gru'}</div>
-                              <p className="text-xs font-bold text-neutral-800 dark:text-neutral-200 border-l-2 border-emerald-500 pl-3 leading-relaxed">
-                                {rec.justificacion}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <hr className="border-neutral-200 dark:border-neutral-800" />
-
-                      {/* RESUMEN DEL FLUJO */}
-                      <div className="space-y-3">
-                        <span className="text-xs font-black uppercase text-neutral-500 tracking-wider">Flujo completo</span>
-                        <pre className="p-4 bg-neutral-950 border border-neutral-800 text-neutral-400 font-mono text-[10px] leading-snug rounded-2xl overflow-x-auto whitespace-pre">
-{`DATOS DE ENTRADA (Supabase / Postgres)
-         │
-         ▼
-[Paso 1] Secuencia de compras del cliente → ventana de 10 items
-         │
-         ▼
-[Paso 2] Embedding: ID producto → vector 64D
-         Embedding: ID cliente  → vector 32D
-         Embedding: Mes actual  → vector 16D
-         Concatenación          → vector 112D por paso de tiempo
-         │
-         ▼
-[Paso 3] Red GRU (2 capas, 128 neuronas) → lee la secuencia completa
-         │
-         ▼
-[Paso 4] Mecanismo de Atención → asigna % de importancia a cada compra
-         │
-         ▼
-[Paso 5] Capa FC → puntaje (0 a 1) para cada producto del catálogo
-         │
-         ▼
-[Filtros dinámicos] Stock zonal (BD) / Canibalización (catálogo) / Productos nuevos
-         │
-         ├── Motor TF-IDF (Contenido) ──→ inyecta nuevos lanzamientos por afinidad
-         │
-         ▼
-[Top 3 por mes] × 3 meses (autorregresivo — cada mes alimenta al siguiente)
-         │
-         ▼
-[Paso 8] Gemini XAI → argumento clínico en lenguaje natural
-         │
-         ▼
-RECOMENDACIÓN FINAL AL VISITADOR MÉDICO`}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
 
 
 

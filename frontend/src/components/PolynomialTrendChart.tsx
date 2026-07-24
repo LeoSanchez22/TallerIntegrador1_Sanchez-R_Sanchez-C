@@ -30,9 +30,9 @@ export default function PolynomialTrendChart({ clienteId, data }: PolynomialTren
   ];
 
   return (
-    <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-neutral-900 p-4 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
       <div>
-        <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+        <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white">
           Análisis Matemático de Tendencia (Regresión Polinomial)
         </h3>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">

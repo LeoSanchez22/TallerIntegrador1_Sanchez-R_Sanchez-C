@@ -45,9 +45,9 @@ export default function GrafoCausalMultipartito({
   const histList = Array.from(histSet);
 
   return (
-    <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-neutral-900 p-4 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
       <div>
-        <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+        <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white">
           Grafo Causal Multipartito (Caja de Cristal)
         </h3>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -55,8 +55,8 @@ export default function GrafoCausalMultipartito({
         </p>
       </div>
 
-      <div className="flex justify-center items-center overflow-x-auto">
-        <svg width={width} height={height} className="overflow-visible">
+      <div className="flex justify-center items-center overflow-x-auto custom-scrollbar py-2">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-full min-w-[320px] overflow-visible">
           {/* Enlaces de Cliente a Historial */}
           {histList.map((hist, i) => {
             const y1 = height / 2;

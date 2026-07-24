@@ -45,9 +45,9 @@ export default function SistemaSolarRecomendaciones({
   const histList = Array.from(histSet);
 
   return (
-    <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-neutral-900 p-4 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
       <div>
-        <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+        <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white">
           Sistema Solar de Recomendaciones (Causalidad Exacta)
         </h3>
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -55,8 +55,8 @@ export default function SistemaSolarRecomendaciones({
         </p>
       </div>
 
-      <div className="flex justify-center items-center overflow-x-auto">
-        <svg width={width} height={height} className="overflow-visible">
+      <div className="flex justify-center items-center overflow-x-auto custom-scrollbar py-2">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-full min-w-[300px] overflow-visible">
           {/* Orbital rings */}
           <circle cx={centerX} cy={centerY} r={r1} fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="4 4" strokeOpacity={0.5} />
           <circle cx={centerX} cy={centerY} r={r2} fill="none" stroke="#f97316" strokeWidth="1" strokeDasharray="4 4" strokeOpacity={0.5} />
