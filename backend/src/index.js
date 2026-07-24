@@ -106,19 +106,22 @@ app.post('/model/upload', async (c) => {
       fs.mkdirSync(targetDir, { recursive: true })
     }
 
-    const targetPath = path.join(targetDir, 'modelo_sophia_final.pt')
+    const modelFilename = process.env.NODE_ENV === 'test' ? 'modelo_sophia_test.pt' : 'modelo_sophia_final.pt'
+    const targetPath = path.join(targetDir, modelFilename)
     fs.writeFileSync(targetPath, Buffer.from(buffer))
 
     console.log(`[MODEL UPLOAD] Checkpoint del modelo guardado exitosamente en: ${targetPath}`)
 
-    // Recargar el microservicio python (Uvicorn) en PM2 de manera no bloqueante
-    exec('pm2 reload sophia-fastapi', (err, stdout, stderr) => {
-      if (err) {
-        console.error("[MODEL UPLOAD] Error ejecutando pm2 reload sophia-fastapi:", err.message)
-      } else {
-        console.log("[MODEL UPLOAD] pm2 reload sophia-fastapi ejecutado exitosamente:\n", stdout)
-      }
-    })
+    // Recargar el microservicio python (Uvicorn) en PM2 de manera no bloqueante (solo fuera de pruebas)
+    if (process.env.NODE_ENV !== 'test') {
+      exec('pm2 reload sophia-fastapi', (err, stdout, stderr) => {
+        if (err) {
+          console.error("[MODEL UPLOAD] Error ejecutando pm2 reload sophia-fastapi:", err.message)
+        } else {
+          console.log("[MODEL UPLOAD] pm2 reload sophia-fastapi ejecutado exitosamente:\n", stdout)
+        }
+      })
+    }
 
     return c.json({ success: true, message: "Modelo actualizado exitosamente en el servidor de despliegue" })
   } catch (err) {
@@ -640,9 +643,15 @@ app.delete('/api/users/:id', async (c) => {
 // 5. Arranque del Servidor Hono
 const port = Number(process.env.PORT) || 5005
 
-serve({
-  fetch: app.fetch,
-  port: port
-}, (info) => {
-  console.log(`[INFO] Hono API iniciada de forma segura en http://localhost:${info.port}`)
-})
+if (process.env.NODE_ENV !== 'test') {
+  serve({
+    fetch: app.fetch,
+    port: port
+  }, (info) => {
+    console.log(`[INFO] Hono API iniciada de forma segura en http://localhost:${info.port}`)
+  })
+}
+
+export { app }
+export default app
+
