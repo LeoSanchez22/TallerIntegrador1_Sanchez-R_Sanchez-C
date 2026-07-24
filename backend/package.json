@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node src/index.js",
     "start": "node src/index.js",
-    "test": "node --test"
+    "test": "node --test src/config/db.test.js src/tests/auth_middleware.test.js src/tests/ml_endpoints.test.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
