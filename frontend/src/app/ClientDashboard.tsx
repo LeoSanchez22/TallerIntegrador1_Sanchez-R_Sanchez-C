@@ -8,6 +8,11 @@ interface ProyeccionItem {
   probabilidad: number
   motor: string
   justificacion: string
+  detonante?: string
+  lift?: string | number
+  confianza?: string | number
+  cantidad_sugerida?: number
+  ingreso_estimado?: number
   modelo_oculto?: string
   item_atencion?: string
   peso_atencion?: number
@@ -78,7 +83,11 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 pesoAtencion: item.peso_atencion,
                 motor: item.motor,
                 modeloOculto: item.modelo_oculto,
-                mes
+                mes,
+                lift: item.lift || 1.5,
+                confianza: item.confianza || item.probabilidad || 50,
+                cantidadSugerida: item.cantidad_sugerida || 10,
+                ingresoEstimado: item.ingreso_estimado || 100
               })
             });
             if (res.ok) {
