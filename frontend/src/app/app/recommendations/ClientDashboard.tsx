@@ -94,7 +94,7 @@ function renderBoldText(text: string) {
 }
 
 export default function ClientDashboard({ initialData }: { initialData: any[] }) {
-  const [activeTab, setActiveTab] = useState<'inference' | 'register' | 'mlops'>('inference')
+  const [activeTab, setActiveTab] = useState<'inference' | 'register' | 'dlops'>('inference')
   
   // States for Inference
   const [selectedZona, setSelectedZona] = useState('')
@@ -211,10 +211,10 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     return () => { active = false }
   }, [selectedLanzamientoSim])
 
-  // States for MLOps Training
+  // States for DLOps Training
   const [trainingActive, setTrainingActive] = useState(false)
   const [trainingLogs, setTrainingLogs] = useState<string[]>([])
-  const [mlopsError, setMlopsError] = useState<string | null>(null)
+  const [dlopsError, setDlopsError] = useState<string | null>(null)
   const terminalEndRef = useRef<HTMLDivElement>(null)
 
   // Sync theme changes dynamically to prevent rendering outdated color channels in Recharts
@@ -472,8 +472,8 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   // Handle training initiation
   async function handleLaunchTraining() {
     setTrainingActive(true)
-    setMlopsError(null)
-    setTrainingLogs(['Iniciando reentrenamiento del pipeline de Machine Learning (Apriori, K-Means, Regresión)...'])
+    setDlopsError(null)
+    setTrainingLogs(['Iniciando reentrenamiento del pipeline de Deep Learning y afinidad contextual...'])
     
     try {
       const res = await fetchWithAuth('/api/model/train', { method: 'POST' })
@@ -483,7 +483,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       const data = await res.json()
       setTrainingLogs(prev => [...prev, data.message || 'Proceso de entrenamiento iniciado.'])
     } catch (err: any) {
-      setMlopsError(err.message || 'Error al conectar con la API de entrenamiento.')
+      setDlopsError(err.message || 'Error al conectar con la API de entrenamiento.')
       setTrainingActive(false)
     }
   }
@@ -611,15 +611,15 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
           <span>Registrar Lanzamiento</span>
         </button>
         <button
-          onClick={() => setActiveTab('mlops')}
+          onClick={() => setActiveTab('dlops')}
           className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
-            activeTab === 'mlops'
+            activeTab === 'dlops'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
           <Cpu className="w-4 h-4 flex-shrink-0" />
-          <span>Mantenimiento & MLOps</span>
+          <span>Mantenimiento & DLOps</span>
         </button>
       </div>
 
@@ -1051,7 +1051,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   </div>
                 )}
 
-                {/* TELEMETRÍA MLOPS (XAI) DE BACKTESTING */}
+                {/* TELEMETRÍA DE BACKTESTING (XAI) */}
                 {proyeccionData.xai_detalles?.telemetria && (
                   <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-200 space-y-6">
                     <div className="flex items-center space-x-3 mb-4">
@@ -1446,31 +1446,31 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
         </div>
       )}
 
-      {/* CONTENIDO TAB 3: MLOPS TRAINING */}
-      {activeTab === 'mlops' && (
+      {/* CONTENIDO TAB 3: DEEP LEARNING TRAINING */}
+      {activeTab === 'dlops' && (
         <div className="max-w-4xl mx-auto animate-fadeIn space-y-8">
           <div className="bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl transition-all">
             <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
               <Cpu className="w-6 h-6 text-emerald-500" />
               <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
-                Ejecutar Pipeline de Machine Learning
+                Ejecutar Pipeline de Deep Learning
               </h3>
             </div>
 
             <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
-              Dispara el ciclo de procesamiento MLOps para incorporar las nuevas ventas y clientes a los algoritmos de <strong>Reglas de Asociación Apriori</strong>, <strong>Clustering K-Means</strong> y <strong>Regresión Polinomial</strong>.
+              Dispara el ciclo de procesamiento DLOps para incorporar las nuevas ventas y clientes a los modelos profundos de recomendación y atención contextual.
             </p>
 
-            {mlopsError && (
+            {dlopsError && (
               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start space-x-3 text-red-600 dark:text-red-400">
                 <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <span className="text-sm font-semibold">{mlopsError}</span>
+                <span className="text-sm font-semibold">{dlopsError}</span>
               </div>
             )}
 
             <div className="flex flex-col md:flex-row items-center gap-6 justify-between bg-neutral-50 dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 mb-8">
               <div className="space-y-1 text-center md:text-left">
-                <h4 className="font-bold text-neutral-900 dark:text-white text-base">Estado del Motor de Machine Learning</h4>
+                <h4 className="font-bold text-neutral-900 dark:text-white text-base">Estado del Motor de Deep Learning</h4>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   {trainingActive ? 'Activo: Entrenando modelo en segundo plano...' : 'Inactivo: Esperando comando de reentrenamiento.'}
                 </p>

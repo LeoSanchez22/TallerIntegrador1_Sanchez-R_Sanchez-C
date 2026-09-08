@@ -9,7 +9,7 @@ export default function DataQualityMetrics({ dataQuality }: DataQualityMetricsPr
     <div className="bg-white dark:bg-neutral-900/40 backdrop-blur-md rounded-xl p-6 border border-neutral-200 dark:border-neutral-800 shadow-sm transition-all duration-200">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-neutral-900 dark:text-white mb-2">Métricas de Calidad (Data Quality)</h2>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Evaluación del dataset de Supabase para inferencia de Machine Learning</p>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Evaluación del dataset de Supabase para inferencia de Deep Learning</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {dataQuality.map((item, index) => (

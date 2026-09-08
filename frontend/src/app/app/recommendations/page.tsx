@@ -44,7 +44,7 @@ export default function Page() {
     <div className="space-y-12">
       <header className="text-center pb-4">
         <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-neutral-200 to-neutral-500 leading-tight">
-          Sistema predictivo y recomendación con Machine Learning en el área de ventas de Laboratorios Sophia
+          Sistema predictivo y recomendación con Deep Learning en el área de ventas de Laboratorios Sophia
         </h1>
       </header>
 
