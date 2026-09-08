@@ -57,7 +57,7 @@ export default function KPICards({ dashboardData }: KPICardsProps) {
           <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#00B4D8]/10 rounded-xl flex items-center justify-center border border-[#00B4D8]/20">
             <RiLineChartLine className="w-5 h-5 sm:w-6 sm:h-6 text-[#00B4D8]" />
           </div>
-          <span className="text-xs bg-[#00B4D8]/20 text-[#00B4D8] px-2 py-1 rounded-full font-bold">ML Engine</span>
+          <span className="text-xs bg-[#00B4D8]/20 text-[#00B4D8] px-2 py-1 rounded-full font-bold">Deep Learning Engine</span>
         </div>
         <h3 className="text-xl sm:text-2xl xl:text-3xl font-black text-neutral-900 dark:text-white mb-1">
           {dashboardData?.productos_vendidos || 0}
