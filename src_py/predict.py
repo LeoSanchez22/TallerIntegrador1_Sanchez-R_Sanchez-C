@@ -44,6 +44,8 @@ def cargar_compras():
             return pd.read_csv(candidate)
     return None
 
+cargar_compras_supabase = cargar_compras
+
 def predecir(cliente_id: int):
     compras_ctx = cargar_compras()
     if compras_ctx is None:
