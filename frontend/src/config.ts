@@ -1,12 +1,17 @@
 /**
  * Configuración de la URL base para el consumo de la API.
- * En el navegador (Client-Side) siempre se utilizan rutas relativas ('') para que
- * todas las peticiones sean interceptadas y redirigidas limpiamente por Nginx
- * hacia el puerto correspondiente (5007 para Taller 1 o 5017 para Taller 2).
+ * - En Local (localhost:3000): Se conecta directamente al puerto del Backend Hono (5005).
+ * - En Producción / VPS (tallerintegrador1.diegoproyectos.me / taller2.diegoproyectos.me):
+ *   Usa rutas relativas ('') para que Nginx enrute transparentemente al puerto 5007 o 5017.
  */
-const rawEnvUrl = process.env.NEXT_PUBLIC_API_URL || '';
-const isLocalhost = rawEnvUrl.includes('localhost') || rawEnvUrl.includes('127.0.0.1');
+export const API_URL = (() => {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal) {
+      return 'http://127.0.0.1:5005';
+    }
+    return '';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5005';
+})();
 
-export const API_URL = typeof window !== 'undefined'
-  ? (isLocalhost ? '' : rawEnvUrl)
-  : (rawEnvUrl || 'http://127.0.0.1:5007');

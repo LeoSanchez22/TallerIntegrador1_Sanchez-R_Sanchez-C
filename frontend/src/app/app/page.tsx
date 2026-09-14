@@ -99,9 +99,9 @@ export default function Dashboard() {
           <Loader2 className="w-10 h-10 text-sophia-blue animate-spin" />
         </div>
       ) : error ? (
-        <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">
-          <p className="text-red-400 text-xl font-bold mb-2">Error de Conexión: {error}</p>
-          <p className="text-neutral-400 text-sm">Verifica que tu SUPABASE_JWT_SECRET coincida con tu proyecto de Supabase en el archivo .env del backend.</p>
+        <div className="text-center p-12 bg-red-500/10 rounded-3xl border border-red-500/20 shadow-xl">
+          <p className="text-red-500 text-xl font-bold mb-2">Error de Conexión: {error}</p>
+          <p className="text-neutral-500 dark:text-neutral-400 text-sm">Asegúrate de que los servicios de backend estén iniciados y accesibles.</p>
         </div>
       ) : (
         <>

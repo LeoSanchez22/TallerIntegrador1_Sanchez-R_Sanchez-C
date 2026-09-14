@@ -34,45 +34,46 @@ export default function PasswordRecovery() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 relative overflow-hidden font-sans antialiased">
+    <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 text-neutral-900 dark:text-white flex items-center justify-center p-6 relative overflow-hidden font-sans antialiased transition-colors duration-200">
       {/* Background Subtle Radial Gradient */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.02),transparent_50%)]"></div>
+      <div className="absolute top-0 right-0 w-96 h-96 bg-sky-200/40 dark:bg-sky-950/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-100/50 dark:bg-blue-950/20 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
       <div className="max-w-md w-full relative z-10">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <img src="/logo-sophia-color.png" alt="Logo" className="w-10 h-10 object-contain" />
-          </div>
+          <Link href="/" className="inline-flex items-center justify-center mb-4">
+            <img src="/logo-sophia-color.png" alt="Laboratorios Sophia" className="h-10 w-auto object-contain" />
+          </Link>
         </div>
 
-        {/* Card (Next.js Sleek Card Style) */}
-        <div className="bg-neutral-950 border border-neutral-900 rounded-2xl p-8 shadow-2xl">
+        {/* Card */}
+        <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-2xl p-8 shadow-xl shadow-slate-200/50 dark:shadow-none">
           {!submitted ? (
             <>
-              <h1 className="text-2xl font-black text-white mb-2 tracking-tight">Recuperar Contraseña</h1>
-              <p className="text-neutral-400 text-sm mb-8">
-                Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña de forma segura.
+              <h1 className="text-2xl font-black text-neutral-900 dark:text-white mb-2 tracking-tight">Recuperar Contraseña</h1>
+              <p className="text-neutral-500 dark:text-neutral-400 text-sm mb-8">
+                Ingresa tu correo electrónico institucional y te enviaremos un enlace seguro para restablecer tu contraseña.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 {error && (
-                  <div className="bg-red-500/10 text-red-400 p-3 rounded-lg text-sm border border-red-500/20 font-semibold animate-fadeIn">
+                  <div className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 p-3.5 rounded-xl text-sm border border-red-200 dark:border-red-800 font-semibold animate-fadeIn">
                     {error}
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="ejemplo@sophiasciences.com"
+                      placeholder="ejemplo@laboratoriossophia.com"
                       autoComplete="email"
-                      className="w-full pl-12 pr-4 py-3 bg-neutral-900 border border-neutral-800 rounded-lg focus:outline-none focus:border-neutral-700 text-white placeholder-neutral-600 transition-colors text-sm"
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-400 transition-all text-sm"
                       required
                     />
                   </div>
@@ -81,29 +82,29 @@ export default function PasswordRecovery() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors text-sm shadow-lg shadow-sophia-blue/20 flex justify-center items-center gap-2 disabled:opacity-75"
+                  className="w-full py-3.5 bg-sophia-blue text-white font-bold rounded-xl hover:bg-sophia-blue-600 transition-all text-sm shadow-lg shadow-sophia-blue/20 hover:shadow-xl hover:shadow-sophia-blue/30 flex justify-center items-center gap-2 disabled:opacity-75 active:scale-95"
                 >
                   {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {loading ? "Enviando..." : "Enviar enlace de recuperación"}
+                  {loading ? "Enviando enlace..." : "Enviar enlace de recuperación"}
                 </button>
               </form>
             </>
           ) : (
             <div className="text-center py-6">
-              <div className="w-12 h-12 bg-neutral-900 border border-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Check className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Check className="w-6 h-6 text-sophia-blue dark:text-sky-400" />
               </div>
-              <h1 className="text-2xl font-black text-white mb-2 tracking-tight">¡Enlace Enviado!</h1>
-              <p className="text-neutral-400 text-sm mb-8 leading-relaxed">
-                Hemos enviado las instrucciones de recuperación a <span className="font-semibold text-white">{email}</span>. Revisa tu bandeja de entrada.
+              <h1 className="text-2xl font-black text-neutral-900 dark:text-white mb-2 tracking-tight">¡Enlace Enviado!</h1>
+              <p className="text-neutral-600 dark:text-neutral-400 text-sm mb-8 leading-relaxed">
+                Hemos enviado las instrucciones de recuperación a <span className="font-semibold text-sophia-blue dark:text-sky-400">{email}</span>. Revisa tu bandeja de entrada.
               </p>
             </div>
           )}
 
-          <div className="mt-8 border-t border-neutral-900 pt-6 text-center">
+          <div className="mt-8 border-t border-slate-200 dark:border-neutral-800 pt-6 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 text-xs font-bold text-neutral-400 hover:text-white transition-colors"
+              className="inline-flex items-center gap-2 text-xs font-bold text-neutral-500 hover:text-sophia-blue dark:hover:text-white transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               Volver al inicio de sesión

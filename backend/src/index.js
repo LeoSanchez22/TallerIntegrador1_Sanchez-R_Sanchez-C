@@ -146,14 +146,31 @@ app.get('/api/recomendaciones', async (c) => {
   return c.json({ data: getCachedData() })
 })
 
-// Endpoint para obtener la lista de zonas comerciales únicas
+// Endpoint para obtener la lista de zonas comerciales únicas y limpias
 app.get('/api/zonas', async (c) => {
   if (!getIsReady() || getCachedData().length === 0) {
     await precargarDatos()
   }
   const currentData = getCachedData()
-  const zonas = Array.from(new Set(currentData.map(r => r.zona_comercial || r.zona || r.vendedor))).filter(Boolean)
-  return c.json({ zonas })
+  const rawZonas = currentData.map(r => r.zona || r.zona_comercial).filter(Boolean)
+  
+  const cleanZonas = Array.from(new Set(
+    rawZonas
+      .map(z => String(z).trim().toUpperCase())
+      .filter(z => 
+        z.length >= 3 &&
+        !z.startsWith('PHARMA') &&
+        !['FALSE', 'TRUE', 'Z1', 'Z2', 'Z3', 'Z4', 'UNDEFINED', 'NULL'].includes(z) &&
+        !/^\d+$/.test(z) &&
+        !/^\d+\.\d+$/.test(z)
+      )
+  )).sort()
+
+  const finalZonas = cleanZonas.length > 0 
+    ? cleanZonas 
+    : ['LIMA CENTRO', 'LIMA NORTE', 'LIMA SUR', 'LIMA ESTE', 'NORTE CHICO', 'CHICLAYO', 'TRUJILLO', 'AREQUIPA', 'CALLAO', 'CADENAS']
+
+  return c.json({ zonas: finalZonas })
 })
 
 // Endpoint para el Dashboard Principal
@@ -708,7 +725,7 @@ app.get('/api/clientes/list', async (c) => {
     try {
       let query = `
         SELECT 
-          cliente_id,
+          CAST(cliente_id AS INTEGER) as cliente_id,
           MAX(cliente) as cliente,
           MAX(zona) as zona,
           MAX(vendedor) as vendedor,
@@ -718,7 +735,7 @@ app.get('/api/clientes/list', async (c) => {
           SUM(monto_cancelado) as total_monto,
           ARRAY_AGG(DISTINCT producto) as productos_consumidos
         FROM ventas_detalle
-        WHERE 1=1
+        WHERE cliente_id IS NOT NULL AND cliente_id >= 0 AND cliente_id < 10000
       `
       const params = []
       if (search) {
@@ -729,7 +746,7 @@ app.get('/api/clientes/list', async (c) => {
         params.push(zonaFiltro)
         query += ` AND zona = $${params.length}`
       }
-      query += ` GROUP BY cliente_id ORDER BY cliente_id DESC`
+      query += ` GROUP BY CAST(cliente_id AS INTEGER) ORDER BY cliente_id ASC`
 
       const res = await pool.query(query, params)
       rows = res.rows
@@ -738,10 +755,14 @@ app.get('/api/clientes/list', async (c) => {
       const data = getCachedData()
       const clientMap = new Map()
       data.forEach(r => {
-        const cid = Number(r.cliente_id)
-        if (!cid) return
+        const rawCid = r.cliente_id
+        if (rawCid === undefined || rawCid === null || rawCid === '') return
+        const cid = parseInt(rawCid, 10)
+        if (isNaN(cid) || cid < 0 || cid > 10000) return
+
         const cName = r.cliente || r.nombre_cliente || `Cliente ${cid}`
-        const cZona = r.zona_comercial || r.zona || r.vendedor || 'LIMA CENTRO'
+        let cZona = r.zona || r.zona_comercial || 'LIMA'
+        if (cZona.startsWith('PHARMA')) cZona = 'LIMA'
         if (search && !cName.toUpperCase().includes(search) && !String(cid).includes(search)) return
         if (zonaFiltro && zonaFiltro !== 'Todas' && cZona !== zonaFiltro) return
 
@@ -750,7 +771,7 @@ app.get('/api/clientes/list', async (c) => {
             cliente_id: cid,
             cliente: cName,
             zona: cZona,
-            vendedor: r.vendedor || `PHARMA - ${cZona}`,
+            vendedor: `PHARMA - ${cZona}`,
             created_at: r.created_at || new Date().toISOString(),
             total_transacciones: 0,
             total_unidades: 0,

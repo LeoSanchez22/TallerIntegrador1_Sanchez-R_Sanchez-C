@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Mail, Lock, Loader2, ArrowLeft } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
-
-const logo = "https://cdn-icons-png.flaticon.com/512/8297/8297121.png";
 
 export default function Login() {
   const router = useRouter();
@@ -34,106 +32,128 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white grid lg:grid-cols-2 relative overflow-hidden font-sans antialiased">
-      {/* Background radial gradient */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.02),transparent_45%)]"></div>
+    <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 text-neutral-900 dark:text-white grid lg:grid-cols-2 relative overflow-hidden font-sans antialiased transition-colors duration-200">
+      
+      {/* Left Panel - Brand Showcase with Sophia Gradient */}
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-sophia-blue-900 via-sophia-blue to-sky-600 text-white relative z-10 shadow-2xl overflow-hidden">
+        {/* Decorative background circles */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-sky-400/20 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
-      {/* Left Panel - Brand Mission (Next.js style minimalist) */}
-      <div className="hidden lg:flex flex-col justify-between p-12 border-r border-neutral-900 bg-neutral-950/40 relative z-10">
-        <Link href="/" className="flex items-center gap-3 group text-neutral-400 hover:text-white transition-colors">
+        <Link href="/" className="inline-flex items-center gap-2 group text-white/80 hover:text-white transition-colors w-fit">
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm font-semibold">Volver al inicio</span>
+          <span className="text-sm font-bold">Volver al inicio</span>
         </Link>
-        <div className="max-w-md my-auto">
-          <div className="flex items-center gap-3 mb-8">
-            <img src="/logo-sophia-color.png" alt="Logo" className="h-12 w-auto object-contain" />
+
+        <div className="max-w-md my-auto relative z-10">
+          <div className="p-3 bg-white rounded-2xl w-fit mb-8 shadow-xl">
+            <img src="/logo-sophia-color.png" alt="Laboratorios Sophia" className="h-10 w-auto object-contain" />
           </div>
-          <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-400 mb-6 leading-tight">
-            Análisis de Demanda Farmacéutica con Deep Learning
+
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-bold mb-6">
+            <Sparkles className="w-3.5 h-3.5 text-sky-300" />
+            <span>Sistema XAI & Forecasting Farmacéutico</span>
+          </div>
+
+          <h2 className="text-4xl font-black mb-6 leading-tight tracking-tight">
+            Pronóstico de Demanda y Recomendaciones Clínicas
           </h2>
-          <p className="text-md text-neutral-400 leading-relaxed">
-            Predicciones de alta fidelidad basadas en modelos profundos de atención, secuencias y explicación interpretativa para la optimización comercial.
+          <p className="text-base text-white/90 leading-relaxed font-normal">
+            Plataforma con modelos Attention-GRU y algoritmos de asociación terapéutica diseñada para optimizar la toma de decisiones comerciales en el sector oftalmológico.
           </p>
         </div>
-        <div className="text-xs text-neutral-600">
-          &copy; 2026. All rights reserved.
+
+        <div className="flex items-center justify-between text-xs text-white/70 border-t border-white/15 pt-6">
+          <span>&copy; 2026 Laboratorios Sophia S.A.</span>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-sky-300" />
+            <span>Acceso Seguro Encriptado</span>
+          </div>
         </div>
       </div>
 
-      {/* Right Panel - Login Form (Next.js Style Form) */}
+      {/* Right Panel - Login Form (Clean Pharma Light Mode) */}
       <div className="p-8 sm:p-12 flex flex-col justify-center relative z-10 w-full max-w-md mx-auto lg:max-w-none">
         <div className="max-w-md w-full mx-auto">
-          <div className="lg:hidden flex items-center gap-3 mb-8">
-            <img src="/logo-sophia-color.png" alt="Logo" className="h-9 w-auto object-contain" />
+          {/* Mobile Back button and Logo */}
+          <div className="lg:hidden flex items-center justify-between mb-8">
+            <Link href="/" className="inline-flex items-center gap-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-xs font-bold">Inicio</span>
+            </Link>
+            <img src="/logo-sophia-color.png" alt="Logo Sophia" className="h-8 w-auto object-contain" />
           </div>
 
-          <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Iniciar Sesión</h1>
-          <p className="text-neutral-400 text-sm mb-8">Ingresa tus credenciales para acceder a la plataforma</p>
+          <div className="mb-8">
+            <h1 className="text-3xl font-black text-neutral-900 dark:text-white tracking-tight mb-2">Iniciar Sesión</h1>
+            <p className="text-neutral-500 dark:text-neutral-400 text-sm">Ingresa con tus credenciales asignadas para acceder a la plataforma</p>
+          </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5">
             {error && (
-              <div className="bg-red-500/10 text-red-400 p-3 rounded-lg text-sm border border-red-500/20 font-semibold">
-                {error}
+              <div className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 p-3.5 rounded-xl text-sm border border-red-200 dark:border-red-800 font-semibold flex items-center gap-2 animate-shake">
+                <span>⚠️</span>
+                <span>{error}</span>
               </div>
             )}
             
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ejemplo@sophiasciences.com"
+                  placeholder="ejemplo@laboratoriossophia.com"
                   autoComplete="username"
-                  className="w-full pl-12 pr-4 py-3 bg-neutral-900 border border-neutral-800 rounded-lg focus:outline-none focus:border-neutral-700 text-white placeholder-neutral-600 transition-colors text-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-900 border border-slate-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-sophia-blue focus:border-transparent text-neutral-900 dark:text-white placeholder-neutral-400 transition-all text-sm shadow-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Contraseña</label>
-                <Link href="/recovery" className="text-xs text-neutral-400 hover:text-white transition-colors">
+                <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">Contraseña</label>
+                <Link href="/recovery" className="text-xs font-semibold text-sophia-blue dark:text-sky-400 hover:underline transition-colors">
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full pl-12 pr-4 py-3 bg-neutral-900 border border-neutral-800 rounded-lg focus:outline-none focus:border-neutral-700 text-white placeholder-neutral-600 transition-colors text-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-900 border border-slate-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-sophia-blue focus:border-transparent text-neutral-900 dark:text-white placeholder-neutral-400 transition-all text-sm shadow-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-1">
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input type="checkbox" className="w-4 h-4 rounded bg-neutral-900 border-neutral-800 text-white focus:ring-0 cursor-pointer" />
-                <span className="text-xs font-semibold text-neutral-400">Recordarme en este equipo</span>
+                <input type="checkbox" className="w-4 h-4 rounded bg-white dark:bg-neutral-900 border-slate-300 dark:border-neutral-700 text-sophia-blue focus:ring-sophia-blue cursor-pointer" />
+                <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Recordar sesión</span>
               </label>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors flex justify-center items-center gap-2 disabled:opacity-70 text-sm shadow-lg shadow-sophia-blue/20"
+              className="w-full py-3.5 bg-sophia-blue text-white font-bold rounded-xl hover:bg-sophia-blue-600 transition-all flex justify-center items-center gap-2 disabled:opacity-70 text-sm shadow-lg shadow-sophia-blue/20 hover:shadow-xl hover:shadow-sophia-blue/30 active:scale-95"
             >
               {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-              {loading ? "Iniciando Sesión..." : "Iniciar Sesión"}
+              {loading ? "Iniciando Sesión..." : "Acceder a Sophia XAI"}
             </button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-neutral-400">
+          <p className="mt-8 text-center text-xs text-neutral-500 dark:text-neutral-400">
             ¿No tienes una cuenta aún?{" "}
-            <Link href="/register" className="text-white font-bold hover:underline">
+            <Link href="/register" className="text-sophia-blue dark:text-sky-400 font-bold hover:underline">
               Regístrate aquí
             </Link>
           </p>
@@ -142,3 +162,4 @@ export default function Login() {
     </div>
   );
 }
+

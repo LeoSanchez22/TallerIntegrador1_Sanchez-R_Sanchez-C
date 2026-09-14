@@ -43,6 +43,25 @@ export async function precargarDatos() {
     console.log("[DB CACHE] Alerta: Iniciando en modo offline. Cargando dataset de respaldo...")
   }
 
+function parseCsvLine(text) {
+  const result = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      result.push(cur.trim().replace(/^"|"$/g, ''))
+      cur = ''
+    } else {
+      cur += char
+    }
+  }
+  result.push(cur.trim().replace(/^"|"$/g, ''))
+  return result
+}
+
   // Fallback a CSV local
   try {
     const csvCandidates = [
@@ -56,13 +75,18 @@ export async function precargarDatos() {
         const content = fs.readFileSync(csvPath, 'utf-8')
         const lines = content.split('\n').filter(l => l.trim().length > 0)
         if (lines.length > 1) {
-          const headers = lines[0].split(',').map(h => h.trim())
+          const headers = parseCsvLine(lines[0])
           cachedData = lines.slice(1).map((line, idx) => {
-            const values = line.split(',')
+            const values = parseCsvLine(line)
             const row = { id: idx + 1 }
             headers.forEach((h, i) => {
-              row[h] = values[i]?.trim()
+              row[h] = values[i] ?? ''
             })
+            // Asegurar cliente_id numérico entero
+            if (row.cliente_id !== undefined) {
+              const parsedId = parseInt(row.cliente_id, 10)
+              row.cliente_id = isNaN(parsedId) ? idx : parsedId
+            }
             return row
           })
           isReady = true
