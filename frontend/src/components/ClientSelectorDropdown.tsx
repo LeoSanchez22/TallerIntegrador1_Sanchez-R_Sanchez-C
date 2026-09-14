@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, MapPin, Hospital, Check } from 'lucide-react';
+import { Search, ChevronDown, MapPin, Hospital, Check, UserPlus } from 'lucide-react';
 
 interface ClientOption {
   id: number;
@@ -15,6 +15,7 @@ interface ClientSelectorDropdownProps {
   clientes: ClientOption[];
   selectedCliente: number | null;
   onSelectCliente: (clienteId: number) => void;
+  onOpenNewCustomerModal?: () => void;
 }
 
 export default function ClientSelectorDropdown({
@@ -23,7 +24,8 @@ export default function ClientSelectorDropdown({
   onSelectZona,
   clientes,
   selectedCliente,
-  onSelectCliente
+  onSelectCliente,
+  onOpenNewCustomerModal
 }: ClientSelectorDropdownProps) {
   const [isZonaOpen, setIsZonaOpen] = useState(false);
   const [isClienteOpen, setIsClienteOpen] = useState(false);
@@ -56,9 +58,9 @@ export default function ClientSelectorDropdown({
   const currentCliente = clientes.find(c => c.id === selectedCliente);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+    <div className="grid grid-cols-1 gap-4 w-full">
       {/* 1. Selector de Zona Comercial Custom */}
-      <div className="flex flex-col gap-2 relative w-full" ref={zonaRef}>
+      <div className="flex flex-col gap-1.5 relative w-full" ref={zonaRef}>
         <label className="text-[10px] font-black text-neutral-500 dark:text-neutral-400 uppercase tracking-widest pl-1">
           Zona Comercial
         </label>
@@ -69,11 +71,11 @@ export default function ClientSelectorDropdown({
             setIsZonaOpen(!isZonaOpen);
             setIsClienteOpen(false);
           }}
-          className="flex items-center justify-between w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300/80 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-sm focus:outline-none focus:border-emerald-500 transition-all text-left shadow-sm min-h-[46px]"
+          className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300/80 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-xs sm:text-sm focus:outline-none focus:border-sophia-blue dark:focus:border-sophia-blue-400 transition-all text-left shadow-sm min-h-[44px]"
         >
           <div className="flex items-center gap-2.5 truncate">
-            <MapPin className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-            <span className="truncate">{selectedZona || 'Seleccionar Zona'}</span>
+            <MapPin className="w-4 h-4 text-sophia-blue dark:text-sophia-blue-400 flex-shrink-0" />
+            <span className="truncate uppercase">{selectedZona || 'Seleccionar Zona'}</span>
           </div>
           <ChevronDown className={`w-4 h-4 text-neutral-500 flex-shrink-0 transition-transform duration-200 ${isZonaOpen ? 'rotate-180' : ''}`} />
         </button>
@@ -88,14 +90,14 @@ export default function ClientSelectorDropdown({
                   onSelectZona(zona);
                   setIsZonaOpen(false);
                 }}
-                className={`flex items-center justify-between w-full px-4 py-3 text-sm font-semibold text-left transition-colors ${
+                className={`flex items-center justify-between w-full px-4 py-2.5 text-xs sm:text-sm font-semibold text-left transition-colors uppercase ${
                   selectedZona === zona
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    ? 'bg-sophia-blue/10 text-sophia-blue dark:bg-sophia-blue/20 dark:text-sophia-blue-300'
                     : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
                 }`}
               >
                 <span>{zona}</span>
-                {selectedZona === zona && <Check className="w-4 h-4 text-emerald-500" />}
+                {selectedZona === zona && <Check className="w-4 h-4 text-sophia-blue dark:text-sophia-blue-400" />}
               </button>
             ))}
           </div>
@@ -103,10 +105,12 @@ export default function ClientSelectorDropdown({
       </div>
 
       {/* 2. Selector de Institución / Clínica Custom */}
-      <div className="flex flex-col gap-2 relative w-full" ref={clienteRef}>
-        <label className="text-[10px] font-black text-neutral-500 dark:text-neutral-400 uppercase tracking-widest pl-1">
-          Institución / Clínica
-        </label>
+      <div className="flex flex-col gap-1.5 relative w-full" ref={clienteRef}>
+        <div className="flex items-center justify-between pl-1">
+          <label className="text-[10px] font-black text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">
+            Institución / Clínica
+          </label>
+        </div>
         
         <button
           type="button"
@@ -115,10 +119,10 @@ export default function ClientSelectorDropdown({
             setIsZonaOpen(false);
             setClienteSearch('');
           }}
-          className="flex items-center justify-between w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300/80 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-sm focus:outline-none focus:border-emerald-500 transition-all text-left shadow-sm min-h-[46px]"
+          className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-300/80 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-xs sm:text-sm focus:outline-none focus:border-sophia-blue dark:focus:border-sophia-blue-400 transition-all text-left shadow-sm min-h-[44px]"
         >
           <div className="flex items-center gap-2.5 truncate">
-            <Hospital className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+            <Hospital className="w-4 h-4 text-sophia-blue dark:text-sophia-blue-400 flex-shrink-0" />
             <span className="truncate">
               {currentCliente ? `ID: ${currentCliente.id} - ${currentCliente.name}` : 'Seleccionar Cliente'}
             </span>
@@ -136,30 +140,30 @@ export default function ClientSelectorDropdown({
                 value={clienteSearch}
                 onChange={(e) => setClienteSearch(e.target.value)}
                 placeholder="Buscar por ID o nombre..."
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-350 dark:border-neutral-850 text-neutral-900 dark:text-white text-xs font-semibold focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-9 pr-4 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white text-xs font-semibold focus:outline-none focus:border-sophia-blue dark:focus:border-sophia-blue-400 transition-all"
               />
             </div>
 
             {/* Scrollable list */}
             <div className="overflow-y-auto max-h-52 custom-scrollbar flex flex-col">
               {filteredClientes.length > 0 ? (
-                filteredClientes.map((c) => (
+                filteredClientes.map((c, idx) => (
                   <button
-                    key={c.id}
+                    key={`client-opt-${c.id}-${idx}`}
                     type="button"
                     onClick={() => {
                       onSelectCliente(c.id);
                       setIsClienteOpen(false);
                       setClienteSearch('');
                     }}
-                    className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-xs font-semibold text-left transition-colors ${
+                    className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-xs font-semibold text-left transition-colors ${
                       selectedCliente === c.id
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        ? 'bg-sophia-blue/10 text-sophia-blue dark:bg-sophia-blue/20 dark:text-sophia-blue-300 font-bold'
                         : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
                     }`}
                   >
                     <span className="truncate pr-2">ID: {c.id} - {c.name}</span>
-                    {selectedCliente === c.id && <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />}
+                    {selectedCliente === c.id && <Check className="w-3.5 h-3.5 text-sophia-blue dark:text-sophia-blue-400 flex-shrink-0" />}
                   </button>
                 ))
               ) : (

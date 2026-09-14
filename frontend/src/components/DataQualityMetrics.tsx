@@ -16,14 +16,14 @@ export default function DataQualityMetrics({ dataQuality }: DataQualityMetricsPr
           <div key={index} className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-bold text-neutral-700 dark:text-neutral-300">{item.metric}</span>
-              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded bg-sophia-blue/10 text-sophia-blue dark:text-sky-400 border border-sophia-blue/20">
                 {item.status}
               </span>
             </div>
             <p className="text-4xl font-black text-neutral-900 dark:text-white mb-3">{item.score}<span className="text-xl text-neutral-500">%</span></p>
             <div className="w-full bg-neutral-200 dark:bg-neutral-800 rounded-full h-1.5">
               <div
-                className="h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                className="h-1.5 rounded-full bg-sophia-blue dark:bg-sky-500 shadow-[0_0_8px_rgba(17,63,156,0.5)]"
                 style={{ width: `${item.score}%` }}
               ></div>
             </div>

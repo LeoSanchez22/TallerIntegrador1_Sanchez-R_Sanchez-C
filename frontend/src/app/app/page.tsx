@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react';
-import { RiLoader4Line } from "react-icons/ri";
+import { Loader2 } from "lucide-react";
 import { fetchWithAuth } from '../../lib/apiClient';
 import KPICards from "../../components/KPICards";
 
@@ -73,9 +73,9 @@ export default function Dashboard() {
         
         {/* Dropdown de Zonas */}
         <div className="flex flex-col gap-1 min-w-[250px]">
-          <label className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider">Filtro por Zona Comercial</label>
+          <label className="text-xs font-bold text-sophia-blue dark:text-sky-400 uppercase tracking-wider">Filtro por Zona Comercial</label>
           <select 
-            className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xl transition-all cursor-pointer font-semibold"
+            className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-sophia-blue focus:outline-none shadow-xl transition-all cursor-pointer font-semibold"
             value={selectedZona}
             onChange={(e) => setSelectedZona(e.target.value)}
           >
@@ -96,7 +96,7 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
-          <RiLoader4Line className="w-10 h-10 text-emerald-500 animate-spin" />
+          <Loader2 className="w-10 h-10 text-sophia-blue animate-spin" />
         </div>
       ) : error ? (
         <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">

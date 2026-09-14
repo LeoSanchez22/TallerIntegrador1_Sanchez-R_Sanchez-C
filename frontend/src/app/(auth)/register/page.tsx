@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { RiUserLine, RiMailLine, RiBriefcaseLine, RiBuildingLine, RiLockPasswordLine, RiCheckLine, RiLoader4Line } from "react-icons/ri";
+import { User, Mail, Briefcase, Building2, Lock, Check, Loader2 } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 
 const logo = "https://cdn-icons-png.flaticon.com/512/8297/8297121.png";
@@ -73,11 +73,11 @@ export default function Register() {
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                step >= s ? "bg-white text-black" : "bg-neutral-900 text-neutral-500 border border-neutral-800"
+                step >= s ? "bg-sophia-blue text-white" : "bg-neutral-900 text-neutral-500 border border-neutral-800"
               }`}>
-                {step > s ? <RiCheckLine className="w-4 h-4" /> : s}
+                {step > s ? <Check className="w-4 h-4" /> : s}
               </div>
-              {s < 3 && <div className={`w-12 h-[1px] ${step > s ? "bg-white" : "bg-neutral-800"}`}></div>}
+              {s < 3 && <div className={`w-12 h-[1px] ${step > s ? "bg-sophia-blue" : "bg-neutral-800"}`}></div>}
             </div>
           ))}
         </div>
@@ -97,7 +97,7 @@ export default function Register() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Nombre Completo</label>
                   <div className="relative">
-                    <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="text"
                       value={formData.name}
@@ -113,7 +113,7 @@ export default function Register() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
                   <div className="relative">
-                    <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="email"
                       value={formData.email}
@@ -129,7 +129,7 @@ export default function Register() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Contraseña</label>
                   <div className="relative">
-                    <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="password"
                       value={formData.password}
@@ -150,7 +150,7 @@ export default function Register() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Cargo / Rol</label>
                   <div className="relative">
-                    <RiBriefcaseLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <select
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -169,7 +169,7 @@ export default function Register() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Nombre de la Empresa</label>
                   <div className="relative">
-                    <RiBuildingLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="text"
                       value={formData.company}
@@ -187,7 +187,7 @@ export default function Register() {
             {step === 3 && (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-neutral-900 border border-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <RiMailLine className="w-8 h-8 text-white" />
+                  <Mail className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">Revisa tu correo</h3>
                 <p className="text-neutral-400 text-sm mb-6 leading-relaxed">
@@ -202,9 +202,9 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-neutral-200 transition-colors flex justify-center items-center gap-2 disabled:opacity-70 text-sm shadow-lg shadow-white/5"
+              className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors flex justify-center items-center gap-2 disabled:opacity-70 text-sm shadow-lg shadow-sophia-blue/20"
             >
-              {loading && <RiLoader4Line className="w-5 h-5 animate-spin" />}
+              {loading && <Loader2 className="w-5 h-5 animate-spin" />}
               {step === 3 ? "Ir al Dashboard" : loading ? "Procesando..." : "Continuar"}
             </button>
           </form>

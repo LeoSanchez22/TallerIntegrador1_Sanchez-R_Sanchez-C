@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { fetchWithAuth } from '../../../lib/apiClient'
 import { supabase } from '../../../lib/supabase'
-import { RiUserAddLine, RiUserSettingsLine, RiDeleteBin7Line, RiRefreshLine, RiMailLine, RiBriefcaseLine, RiLockPasswordLine, RiUserLine, RiBuildingLine, RiShieldUserLine, RiCheckDoubleLine } from 'react-icons/ri'
+import { UserPlus, UserCog, Trash2, RotateCw, Mail, Briefcase, Lock, User, Building2, ShieldAlert, CheckCheck } from 'lucide-react'
 
 interface UserItem {
   id: string
@@ -196,7 +196,7 @@ export default function UserManagement() {
   if (checkingRole) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-emerald-500"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-sophia-blue"></div>
       </div>
     )
   }
@@ -204,7 +204,7 @@ export default function UserManagement() {
   if (sessionUser?.user_metadata?.role !== 'admin') {
     return (
       <div className="max-w-md mx-auto text-center py-20 px-6 bg-red-950/10 border border-red-900/30 rounded-3xl animate-fadeIn">
-        <RiShieldUserLine className="w-16 h-16 text-red-500 mx-auto mb-6" />
+        <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-6" />
         <h2 className="text-2xl font-black text-white mb-2">Acceso Denegado</h2>
         <p className="text-neutral-400 text-sm mb-6 leading-relaxed">
           Esta sección está restringida únicamente para administradores del sistema. Para probar esta vista, cambia tu rol en Supabase Auth metadata a <code className="bg-neutral-900 px-1.5 py-0.5 rounded text-white text-xs font-mono">admin</code>.
@@ -231,13 +231,13 @@ export default function UserManagement() {
             className="p-3 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-850 rounded-xl transition-all text-neutral-600 dark:text-neutral-350"
             title="Refrescar lista"
           >
-            <RiRefreshLine className="w-5 h-5" />
+            <RotateCw className="w-5 h-5" />
           </button>
           <button
             onClick={openCreateModal}
-            className="flex-1 md:flex-none py-3 px-5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
+            className="flex-1 md:flex-none py-3 px-5 bg-sophia-blue hover:bg-sophia-dark text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(17,63,156,0.35)] flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
           >
-            <RiUserAddLine className="w-4 h-4 text-neutral-950" />
+            <UserPlus className="w-4 h-4 text-white" />
             Nuevo Representante
           </button>
         </div>
@@ -252,7 +252,7 @@ export default function UserManagement() {
       {/* Users Table */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-emerald-500"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-sophia-blue"></div>
         </div>
       ) : (
         <div className="bg-white dark:bg-neutral-950/40 border border-neutral-200 dark:border-neutral-800/80 shadow-2xl rounded-3xl overflow-hidden transition-colors">
@@ -289,7 +289,7 @@ export default function UserManagement() {
                             Inhabilitado
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-lg text-xs font-bold uppercase tracking-wider">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sophia-blue/10 border border-sophia-blue/20 text-sophia-blue dark:text-sky-400 rounded-lg text-xs font-bold uppercase tracking-wider">
                             Activo
                           </span>
                         )}
@@ -301,21 +301,21 @@ export default function UserManagement() {
                             className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-all"
                             title="Editar cuenta"
                           >
-                            <RiUserSettingsLine className="w-5 h-5" />
+                            <UserCog className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleToggleSoftDelete(u.id, isDeleted)}
                             className={`p-2 rounded-lg transition-all ${
                               isDeleted
-                                ? 'text-emerald-500 hover:bg-emerald-500/10'
+                                ? 'text-sophia-blue dark:text-sky-400 hover:bg-sophia-blue/10'
                                 : 'text-red-500 hover:bg-red-500/10'
                             }`}
                             title={isDeleted ? 'Habilitar representante' : 'Inhabilitar representante'}
                           >
                             {isDeleted ? (
-                              <RiCheckDoubleLine className="w-5 h-5" />
+                              <CheckCheck className="w-5 h-5" />
                             ) : (
-                              <RiDeleteBin7Line className="w-5 h-5" />
+                              <Trash2 className="w-5 h-5" />
                             )}
                           </button>
                         </div>
@@ -344,12 +344,12 @@ export default function UserManagement() {
           
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden p-8 animate-scaleIn">
             <h2 className="text-2xl font-black text-neutral-900 dark:text-white uppercase mb-6 flex items-center gap-2">
-              {showModal === 'create' ? <RiUserAddLine className="text-emerald-500" /> : <RiUserSettingsLine className="text-emerald-500" />}
+              {showModal === 'create' ? <UserPlus className="text-sophia-blue dark:text-sky-400" /> : <UserCog className="text-sophia-blue dark:text-sky-400" />}
               {showModal === 'create' ? 'Nuevo Representante' : 'Editar Representante'}
             </h2>
 
             {formSuccess && (
-              <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-xl text-sm font-semibold">
+              <div className="mb-6 p-4 bg-sophia-blue/10 border border-sophia-blue/20 text-sophia-blue dark:text-sky-400 rounded-xl text-sm font-semibold">
                 {formSuccess}
               </div>
             )}
@@ -364,14 +364,14 @@ export default function UserManagement() {
               <div>
                 <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">Nombre Completo *</label>
                 <div className="relative">
-                  <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Ej. Dr. Alejandro Gómez"
-                    className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
+                    className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
                   />
                 </div>
               </div>
@@ -380,14 +380,14 @@ export default function UserManagement() {
                 <div>
                   <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">Correo Electrónico *</label>
                   <div className="relative">
-                    <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
                     <input
                       type="email"
                       required
                       value={formData.email}
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       placeholder="ejemplo@sophiasciences.com"
-                      className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
+                      className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
                     />
                   </div>
                 </div>
@@ -398,14 +398,14 @@ export default function UserManagement() {
                   {showModal === 'create' ? 'Contraseña *' : 'Cambiar Contraseña (opcional)'}
                 </label>
                 <div className="relative">
-                  <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
                   <input
                     type="password"
                     required={showModal === 'create'}
                     value={formData.password}
                     onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                     placeholder={showModal === 'create' ? '••••••••' : 'Dejar en blanco para no cambiar'}
-                    className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
+                    className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
                   />
                 </div>
               </div>
@@ -414,11 +414,11 @@ export default function UserManagement() {
                 <div>
                   <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">Cargo / Rol *</label>
                   <div className="relative">
-                    <RiBriefcaseLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5 pointer-events-none" />
+                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5 pointer-events-none" />
                     <select
                       value={formData.role}
                       onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                      className="appearance-none w-full pl-12 pr-8 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white text-sm transition-all cursor-pointer"
+                      className="appearance-none w-full pl-12 pr-8 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white text-sm transition-all cursor-pointer"
                     >
                       <option value="executive">Ejecutivo Comercial</option>
                       <option value="sales-manager">Gerente de Ventas</option>
@@ -432,14 +432,14 @@ export default function UserManagement() {
                 <div>
                   <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">Nombre Empresa *</label>
                   <div className="relative">
-                    <RiBuildingLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
                     <input
                       type="text"
                       required
                       value={formData.company}
                       onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
                       placeholder="Laboratorios Sophia"
-                      className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
+                      className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all"
                     />
                   </div>
                 </div>
@@ -456,9 +456,9 @@ export default function UserManagement() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold rounded-xl text-sm transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  className="flex-1 py-3.5 bg-sophia-blue hover:bg-sophia-dark text-white font-bold rounded-xl text-sm transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(17,63,156,0.3)]"
                 >
-                  {formLoading && <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-neutral-950"></div>}
+                  {formLoading && <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>}
                   {showModal === 'create' ? 'Crear' : 'Guardar'}
                 </button>
               </div>

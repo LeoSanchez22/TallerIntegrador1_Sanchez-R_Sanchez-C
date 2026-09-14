@@ -198,8 +198,14 @@ def cargar_compras(config):
             print(f"⚠️ No se pudo cargar Supabase: {e}")
             print("⚠️ Usando CSV local como respaldo...")
 
-    compras_path = config["data_dir"] / "compras_ctx.csv"
-    return pd.read_csv(compras_path)
+    for cand in [
+        config["data_dir"] / "compras_ctx.csv",
+        Path(__file__).resolve().parent / "data" / "intermediate" / "compras_ctx.csv",
+        Path(__file__).resolve().parent / "data" / "compras_ctx.csv"
+    ]:
+        if cand.exists():
+            return pd.read_csv(cand)
+    raise FileNotFoundError("No se encontró el archivo de datos compras_ctx.csv")
 
 
 def preparar_datos(config):
@@ -207,11 +213,8 @@ def preparar_datos(config):
     compras = cargar_compras(config)
 
     # =====================================================================
-    # 🌟 FIX CRÍTICO: SANITIZACIÓN DE TIPOS (Igual que en app.py)
+    # 🌟 FIX CRÍTICO: SANITIZACIÓN DE TIPOS
     # =====================================================================
-    # Forzamos a que SQLAlchemy/PostgreSQL no nos contamine los tensores
-    # con floats o strings, asegurando que el diccionario cliente2idx 
-    # se guarde con claves de tipo 'int' puro.
     try:
         compras['cliente_id'] = compras['cliente_id'].astype(int)
         compras['producto_id'] = compras['producto_id'].astype(int)
@@ -245,12 +248,11 @@ def preparar_datos(config):
     print(f"   ✔ {len(clientes_validos)} clientes con historial ≥ {config['min_seq_len']} compras")
     print(f"   ✔ {compras['producto_id'].nunique()} productos únicos")
 
-    # Crear mapa cliente → índice continuo
+    # Crear mapa cliente → índice continuo con padding seguro para nuevos clientes
     clientes_unicos = sorted(compras[col_cliente_id].unique().tolist())
-    # 🌟 Aquí aseguramos el int() adicional por precaución
     cliente2idx     = {int(c): i + 1 for i, c in enumerate(clientes_unicos)}  # 0 reservado para padding
-    num_clientes    = len(clientes_unicos) + 1
-    num_items       = int(compras['producto_id'].max()) + 2
+    num_clientes    = max(len(clientes_unicos) + 50, max(clientes_unicos) + 10)
+    num_items       = max(int(compras['producto_id'].max()) + 50, 200)
 
     # Split Train / Val / Test por cliente (evita data leakage)
     np.random.shuffle(clientes_unicos)

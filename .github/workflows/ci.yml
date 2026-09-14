@@ -7,12 +7,21 @@ on:
       - develop
       - develo
       - development
+      - taller2
+      - feature/taller2
+      - feature/presentación-taller2
+      - feature/presentacion-taller2
+      - 'feature/**'
   pull_request:
     branches:
       - main
       - develop
       - develo
       - development
+      - taller2
+      - feature/taller2
+      - feature/presentación-taller2
+      - feature/presentacion-taller2
 
 jobs:
   test-backend:
@@ -75,8 +84,7 @@ jobs:
     name: Deploy to VPS
     needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
-    # Se ejecuta solo en pushes a ramas de despliegue, no en pull requests
-    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'develop' || github.ref_name == 'develo' || github.ref_name == 'development')
+    if: github.event_name == 'push'
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -86,58 +94,131 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            # 1. Cargar entorno de NVM, Node, NPM y PM2 (Crítico para sesiones SSH no interactivas)
+            # 1. Cargar entorno de NVM, Node, NPM y PM2
             export NVM_DIR="$HOME/.nvm"
             if [ -d "$NVM_DIR" ]; then
                 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             fi
             
-            # Cargar perfiles de bash del usuario
+            # Cargar perfiles bash
             source ~/.bashrc 2>/dev/null || true
             source ~/.profile 2>/dev/null || true
             
-            # Asegurar que PM2 y Node estén en el PATH pase lo que pase
+            # Asegurar PATH
             export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
             
-            echo "========================================="
-            echo "Iniciando Despliegue de Rama: ${{ github.ref_name }}"
-            echo "========================================="
+            BRANCH="${{ github.ref_name }}"
+            echo "========================================================="
+            echo "🚀 Iniciando Despliegue de Rama: $BRANCH"
+            echo "========================================================="
             
-            # Navegar al directorio raíz del proyecto
-            cd /var/www/g2-diegoleo
+            # Determinar entorno según la rama
+            if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "develop" ] || [ "$BRANCH" = "develo" ] || [ "$BRANCH" = "development" ]; then
+                TARGET_DIR="/var/www/g2-diegoleo"
+                PM2_BACKEND="sophia-backend"
+                PM2_FASTAPI="sophia-fastapi"
+                PM2_FRONTEND="sophia-frontend"
+                PORT_BACKEND=5007
+                PORT_FASTAPI=8000
+                PORT_FRONTEND=5008
+                APP_LABEL="TALLER INTEGRADOR 1 (tallerintegrador1.diegoproyectos.me)"
+            else
+                # Ramas de Taller 2 (subcarpeta dentro de g2-diegoleo para no requerir permisos root)
+                TARGET_DIR="/var/www/g2-diegoleo/taller2"
+                PM2_BACKEND="taller2-backend"
+                PM2_FASTAPI="taller2-fastapi"
+                PM2_FRONTEND="taller2-frontend"
+                PORT_BACKEND=5017
+                PORT_FASTAPI=8001
+                PORT_FRONTEND=5018
+                APP_LABEL="TALLER 2 (taller2.diegoproyectos.me)"
+            fi
             
-            # Actualizar el repositorio con los últimos cambios de Git
-            echo "Actualizando código desde Git..."
+            echo "📦 Entorno: $APP_LABEL"
+            echo "📁 Directorio Destino: $TARGET_DIR"
+            echo "🔌 Puertos: Backend=$PORT_BACKEND | Frontend=$PORT_FRONTEND | FastAPI=$PORT_FASTAPI"
+            
+            # Si el directorio de Taller 2 no existe, clonarlo dentro del espacio de trabajo
+            if [ ! -d "$TARGET_DIR/.git" ]; then
+                echo "Inicializando espacio de trabajo en $TARGET_DIR..."
+                mkdir -p "$TARGET_DIR"
+                git clone https://github.com/${{ github.repository }}.git "$TARGET_DIR"
+            fi
+            
+            cd "$TARGET_DIR"
+            
+            # Actualizar código de Git
+            echo "📥 Sincronizando código desde Git ($BRANCH)..."
             git fetch --all
-            git checkout ${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
+            git checkout "$BRANCH" || git checkout -B "$BRANCH" "origin/$BRANCH"
+            git pull origin "$BRANCH"
+            
+            # Replicar variables de entorno si no existen
+            if [ ! -f "$TARGET_DIR/.env" ] && [ -f "/var/www/g2-diegoleo/.env" ]; then
+                cp "/var/www/g2-diegoleo/.env" "$TARGET_DIR/.env"
+            fi
+            if [ ! -f "$TARGET_DIR/backend/.env" ] && [ -f "/var/www/g2-diegoleo/backend/.env" ]; then
+                cp "/var/www/g2-diegoleo/backend/.env" "$TARGET_DIR/backend/.env"
+            fi
+            if [ ! -f "$TARGET_DIR/frontend/.env.local" ] && [ -f "/var/www/g2-diegoleo/frontend/.env.local" ]; then
+                cp "/var/www/g2-diegoleo/frontend/.env.local" "$TARGET_DIR/frontend/.env.local"
+            fi
             
             # --- 1. ACTUALIZAR Y REINICIAR BACKEND ---
-            echo "Actualizando Backend (Hono)..."
-            cd /var/www/g2-diegoleo/backend
+            echo "⚙️ Configurando Backend..."
+            cd "$TARGET_DIR/backend"
             npm install --omit=dev
             
-            echo "Reiniciando backend en PM2 (sophia-backend)..."
-            pm2 reload sophia-backend --update-env || pm2 restart sophia-backend --update-env
+            if pm2 describe "$PM2_BACKEND" > /dev/null 2>&1; then
+                echo "🔄 Recargando $PM2_BACKEND..."
+                PORT=$PORT_BACKEND FASTAPI_URL="http://127.0.0.1:$PORT_FASTAPI" pm2 reload "$PM2_BACKEND" --update-env || pm2 restart "$PM2_BACKEND" --update-env
+            else
+                echo "✨ Iniciando $PM2_BACKEND en PM2..."
+                PORT=$PORT_BACKEND FASTAPI_URL="http://127.0.0.1:$PORT_FASTAPI" pm2 start src/index.js --name "$PM2_BACKEND" --update-env
+            fi
             
             # --- 1.5. REINICIAR MICROSERVICIO FASTAPI ---
-            echo "Reiniciando FastAPI en PM2 (sophia-fastapi)..."
-            pm2 reload sophia-fastapi --update-env || pm2 restart sophia-fastapi --update-env
+            cd "$TARGET_DIR"
+            PYTHON_BIN="python3"
+            if [ -d "$TARGET_DIR/venv" ]; then
+                PYTHON_BIN="$TARGET_DIR/venv/bin/python"
+            elif [ -d "/var/www/g2-diegoleo/venv" ]; then
+                PYTHON_BIN="/var/www/g2-diegoleo/venv/bin/python"
+            fi
+            
+            if pm2 describe "$PM2_FASTAPI" > /dev/null 2>&1; then
+                echo "🔄 Recargando $PM2_FASTAPI..."
+                pm2 reload "$PM2_FASTAPI" --update-env || pm2 restart "$PM2_FASTAPI" --update-env
+            else
+                echo "✨ Iniciando $PM2_FASTAPI en PM2..."
+                pm2 start "$PYTHON_BIN -m uvicorn src_py.servidor_front:app --host 127.0.0.1 --port $PORT_FASTAPI" --name "$PM2_FASTAPI"
+            fi
             
             # --- 2. ACTUALIZAR, COMPILAR Y REINICIAR FRONTEND ---
-            echo "Actualizando Frontend (Next.js)..."
-            cd /var/www/g2-diegoleo/frontend
+            echo "⚙️ Configurando Frontend..."
+            cd "$TARGET_DIR/frontend"
             npm install
             
-            echo "Compilando bundle de producción del Frontend..."
+            echo "📦 Compilando Frontend (Next.js)..."
             npm run build
             
-            echo "Reiniciando frontend en PM2 (sophia-frontend)..."
-            pm2 reload sophia-frontend --update-env || pm2 restart sophia-frontend --update-env
+            if pm2 describe "$PM2_FRONTEND" > /dev/null 2>&1; then
+                echo "🔄 Recargando $PM2_FRONTEND..."
+                PORT=$PORT_FRONTEND pm2 reload "$PM2_FRONTEND" --update-env || PORT=$PORT_FRONTEND pm2 restart "$PM2_FRONTEND" --update-env
+            else
+                echo "✨ Iniciando $PM2_FRONTEND en PM2..."
+                PORT=$PORT_FRONTEND pm2 start "npm run start -- -p $PORT_FRONTEND" --name "$PM2_FRONTEND"
+            fi
+            
+            # Guardar lista de PM2
+            pm2 save
             
             # --- 3. REFRESCAR NGINX ---
-            echo "Recargando servidor web Nginx..."
-            nginx-reload-g2
+            echo "🌐 Recargando Nginx..."
+            nginx-reload-g2 || sudo systemctl reload nginx 2>/dev/null || sudo service nginx reload 2>/dev/null || true
             
-            echo "========================================="
-            echo "Despliegue completado"
+            echo "========================================================="
+            echo "✅ ¡Despliegue exitoso para $APP_LABEL ($BRANCH)!"
+            echo "========================================================="
+
+

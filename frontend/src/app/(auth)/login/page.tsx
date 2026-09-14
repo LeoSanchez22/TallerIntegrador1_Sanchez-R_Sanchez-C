@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { RiMailLine, RiLockPasswordLine, RiLoader4Line, RiArrowLeftLine } from "react-icons/ri";
+import { Mail, Lock, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 
 const logo = "https://cdn-icons-png.flaticon.com/512/8297/8297121.png";
@@ -41,7 +41,7 @@ export default function Login() {
       {/* Left Panel - Brand Mission (Next.js style minimalist) */}
       <div className="hidden lg:flex flex-col justify-between p-12 border-r border-neutral-900 bg-neutral-950/40 relative z-10">
         <Link href="/" className="flex items-center gap-3 group text-neutral-400 hover:text-white transition-colors">
-          <RiArrowLeftLine className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           <span className="text-sm font-semibold">Volver al inicio</span>
         </Link>
         <div className="max-w-md my-auto">
@@ -80,7 +80,7 @@ export default function Login() {
             <div className="space-y-2">
               <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
               <div className="relative">
-                <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                 <input
                   type="email"
                   value={email}
@@ -101,7 +101,7 @@ export default function Login() {
                 </Link>
               </div>
               <div className="relative">
-                <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                 <input
                   type="password"
                   value={password}
@@ -124,9 +124,9 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-neutral-200 transition-colors flex justify-center items-center gap-2 disabled:opacity-70 text-sm shadow-lg shadow-white/5"
+              className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors flex justify-center items-center gap-2 disabled:opacity-70 text-sm shadow-lg shadow-sophia-blue/20"
             >
-              {loading && <RiLoader4Line className="w-5 h-5 animate-spin" />}
+              {loading && <Loader2 className="w-5 h-5 animate-spin" />}
               {loading ? "Iniciando Sesión..." : "Iniciar Sesión"}
             </button>
           </form>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { RiLoader4Line } from "react-icons/ri"
+import { Loader2 } from "lucide-react"
 import ClientDashboard from './ClientDashboard'
 import { fetchWithAuth } from '../../../lib/apiClient'
 
@@ -43,14 +43,14 @@ export default function Page() {
   return (
     <div className="space-y-12">
       <header className="text-center pb-4">
-        <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-br from-white via-neutral-200 to-neutral-500 leading-tight">
-          Sistema predictivo y recomendación con Deep Learning en el área de ventas de Laboratorios Sophia
+        <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-sophia-blue via-sky-600 to-sophia-dark dark:from-white dark:via-neutral-200 dark:to-neutral-400 leading-tight">
+          Sistema Predictivo y Recomendación con Deep Learning en Ventas Sophia
         </h1>
       </header>
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
-          <RiLoader4Line className="w-10 h-10 text-emerald-500 animate-spin" />
+          <Loader2 className="w-10 h-10 text-sophia-blue animate-spin" />
         </div>
       ) : error ? (
         <div className="text-center p-12 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl">

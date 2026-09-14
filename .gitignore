@@ -51,4 +51,7 @@ models/*.pt
 __pycache__/
 .pytest_cache/
 *.zip
+taller2/
+produccion/
+
 

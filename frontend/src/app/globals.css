@@ -2,8 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-sophia-blue: #113F9C;
+  --color-sophia-sky: #0284C7;
+}
+
 body {
-  background-color: #0a0a0a;
-  color: #ededed;
+  @apply bg-slate-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.2);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.4);
 }

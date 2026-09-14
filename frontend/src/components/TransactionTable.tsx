@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react';
-import { RiTableLine, RiSearchLine } from "react-icons/ri";
+import { Table, Search } from "lucide-react";
 
 interface TransactionTableProps {
   pipelineData: any;
@@ -50,7 +50,7 @@ export default function TransactionTable({ pipelineData, totalRows }: Transactio
     <div className="bg-white dark:bg-neutral-900/40 backdrop-blur-md rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-xl overflow-hidden transition-all duration-200">
       <div className="px-6 py-4 bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <h3 className="font-bold text-neutral-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-          <RiTableLine className="w-5 h-5 text-emerald-500" />
+          <Table className="w-5 h-5 text-sophia-blue dark:text-sky-400" />
           Historial de Compras de Todos los Clientes (Transacciones)
         </h3>
 
@@ -59,7 +59,7 @@ export default function TransactionTable({ pipelineData, totalRows }: Transactio
           <select
             value={selectedRegion}
             onChange={(e) => setSelectedRegion(e.target.value)}
-            className="w-full sm:w-48 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 rounded-lg text-xs focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white cursor-pointer transition-colors"
+            className="w-full sm:w-48 px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 rounded-lg text-xs focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white cursor-pointer transition-colors"
           >
             <option value="">Todas las Regiones</option>
             {regiones.map((reg) => (
@@ -71,13 +71,13 @@ export default function TransactionTable({ pipelineData, totalRows }: Transactio
 
           {/* Buscador Dinámico */}
           <div className="relative w-full sm:w-64">
-            <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-4 h-4 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-4 h-4 pointer-events-none" />
             <input
               type="text"
               placeholder="Buscar por ID, Cliente, Producto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 rounded-lg text-xs focus:outline-none focus:border-emerald-500 text-neutral-900 dark:text-white placeholder-neutral-500 transition-colors"
+              className="w-full pl-9 pr-4 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 rounded-lg text-xs focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-500 transition-colors"
             />
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function TransactionTable({ pipelineData, totalRows }: Transactio
               <tr key={i} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30 transition-colors">
                 <td className="p-4 text-sm text-neutral-500 dark:text-neutral-400 font-mono">{row.id}</td>
                 <td className="p-4 text-sm font-bold text-neutral-900 dark:text-white">{row.cliente_id}</td>
-                <td className="p-4 text-sm text-emerald-600 dark:text-emerald-400 font-medium">{row.producto || 'N/A'}</td>
+                <td className="p-4 text-sm text-sophia-blue dark:text-sky-400 font-semibold">{row.producto || 'N/A'}</td>
                 <td className="p-4 text-sm text-neutral-600 dark:text-neutral-300">
                   <span className="bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md text-xs border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">{row.zona || 'N/A'}</span>
                 </td>

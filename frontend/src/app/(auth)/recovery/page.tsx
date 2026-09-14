@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { RiMailLine, RiArrowLeftLine, RiCheckLine, RiLoader4Line } from "react-icons/ri";
+import { Mail, ArrowLeft, Check, Loader2 } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 
 export default function PasswordRecovery() {
@@ -65,7 +65,7 @@ export default function PasswordRecovery() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Correo Electrónico</label>
                   <div className="relative">
-                    <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="email"
                       value={email}
@@ -81,9 +81,9 @@ export default function PasswordRecovery() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-neutral-200 transition-colors text-sm shadow-lg shadow-white/5 flex justify-center items-center gap-2 disabled:opacity-75"
+                  className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors text-sm shadow-lg shadow-sophia-blue/20 flex justify-center items-center gap-2 disabled:opacity-75"
                 >
-                  {loading && <RiLoader4Line className="w-5 h-5 animate-spin" />}
+                  {loading && <Loader2 className="w-5 h-5 animate-spin" />}
                   {loading ? "Enviando..." : "Enviar enlace de recuperación"}
                 </button>
               </form>
@@ -91,7 +91,7 @@ export default function PasswordRecovery() {
           ) : (
             <div className="text-center py-6">
               <div className="w-12 h-12 bg-neutral-900 border border-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                <RiCheckLine className="w-6 h-6 text-white" />
+                <Check className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-2xl font-black text-white mb-2 tracking-tight">¡Enlace Enviado!</h1>
               <p className="text-neutral-400 text-sm mb-8 leading-relaxed">
@@ -105,7 +105,7 @@ export default function PasswordRecovery() {
               href="/login"
               className="inline-flex items-center gap-2 text-xs font-bold text-neutral-400 hover:text-white transition-colors"
             >
-              <RiArrowLeftLine className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" />
               Volver al inicio de sesión
             </Link>
           </div>

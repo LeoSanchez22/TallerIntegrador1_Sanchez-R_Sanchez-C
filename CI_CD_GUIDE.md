@@ -1,17 +1,29 @@
-# Guía de Entorno CI/CD y Despliegue Automatizado a VPS
+# Guía de Entorno CI/CD y Despliegue Automatizado a VPS (`/var/www/g2-diegoleo`)
 
-Esta guía detalla el funcionamiento de la Integración y Despliegue Continuo (CI/CD) implementado para **Laboratorios Sophia**. El pipeline automatiza la ejecución de pruebas unitarias y de tipado al realizar commits en la rama de desarrollo (`develop`/`develo`/`main`), y despliega de manera inmediata los cambios en su VPS utilizando **PM2** y **Nginx**.
+Esta guía detalla el funcionamiento de la Integración y Despliegue Continuo (CI/CD) implementado para **Laboratorios Sophia**, operando directamente en el directorio central `/var/www/g2-diegoleo` y gestionando los servicios en PM2 y Nginx de forma automatizada:
+* **Directorio en VPS**: `/var/www/g2-diegoleo`
+* **Dominio**: `tallerintegrador1.diegoproyectos.me` (y `taller2.diegoproyectos.me`)
+* **Puerto Proxy Nginx**: Puerto `5002` SSL
 
 ---
 
-## ⚙️ Arquitectura del Pipeline
+## ⚙️ Arquitectura de Servicios y Puertos en PM2
 
-El pipeline de GitHub Actions se compone de dos etapas principales:
+| Servicio | Nombre en PM2 | Puerto | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Backend API (Hono)** | `sophia-backend` | **5007** | API REST, conexión Supabase PostgreSQL, autenticación y CRUD |
+| **Frontend (Next.js)** | `sophia-frontend` | **5008** | Interfaz React 19 / Next.js 15 compilada |
+| **Microservicio ML (FastAPI)** | `sophia-fastapi` | **8000** | Motor analítico XAI y modelos predictivos |
+| **Jupyter Notebook** | `sophia-jupyter` | **8888** | Cuaderno de investigación y experimentación |
+
+---
+
+## 🚀 Flujo del Pipeline GitHub Actions
 
 ```
-[ Commit / Push a rama de desarrollo ]
-                │
-                ▼
+[ Git Push desde Local ]
+         │
+         ▼
 ┌────────────────────────────────────────┐
 │         ETAPA 1: INTEGRACIÓN (CI)      │
 │  - Pruebas del Backend (Node --test)   │
@@ -27,80 +39,49 @@ El pipeline de GitHub Actions se compone de dos etapas principales:
          ▼                     ▼
 ┌────────────────────────┐  ┌────────────────────────┐
 │   ETAPA 2: CD (VPS)    │  │       Pipeline         │
-│  - git pull en VPS     │  │      🛑 FALLIDO        │
-│  - npm install         │  │ (No se altera el VPS)  │
-│  - npm run build (Front)│  └────────────────────────┘
-│  - pm2 reload [Apps]   │
+│  - Conexión SSH a VPS  │  │      🛑 FALLIDO        │
+│  - cd /var/www/g2-...  │  │ (No se altera el VPS)  │
+│  - git pull origin     │  └────────────────────────┘
+│  - npm install (Back)  │
+│  - pm2 reload back     │
+│  - pm2 reload fastapi  │
+│  - npm run build (Fr)  │
+│  - pm2 reload front    │
 │  - nginx-reload-g2     │
 └────────────────────────┘
 ```
 
 ---
 
-## 🔑 Configuración de Secretos en GitHub
+## 🌐 Configuración Unificada de Nginx (`/etc/nginx/sites-available/g2-diegoleo`)
 
-Para que el despliegue automático funcione de forma segura, debe agregar las siguientes variables en la sección de secretos de su repositorio de GitHub:
-
-1. Ingrese a su repositorio en GitHub.
-2. Vaya a **Settings** (Configuración) -> **Secrets and variables** (Secretos y variables) -> **Actions** (Acciones).
-3. Haga clic en **New repository secret** (Nuevo secreto de repositorio) para agregar cada uno de los siguientes:
-
-| Nombre del Secreto | Descripción | Valor Ejemplo |
-| :--- | :--- | :--- |
-| **`SSH_HOST`** | La dirección IP pública o subdominio de su VPS. | `tallerintegrador1.diegoproyectos.me` |
-| **`SSH_USERNAME`** | El usuario del VPS con el que se conecta vía SSH. | `ubuntu` o `diegosanchez` |
-| **`SSH_PRIVATE_KEY`** | El contenido completo de su clave SSH privada (generalmente en `~/.ssh/id_rsa` de su máquina local autorizada). | `-----BEGIN OPENSSH PRIVATE KEY----- ...` |
-| **`SSH_PORT`** | *(Opcional)* Puerto SSH si no utiliza el puerto estándar 22. | `22` |
-
----
-
-## 🚀 Procesos Administrados en el VPS por PM2
-
-En su VPS, las aplicaciones ya se encuentran iniciadas y registradas con nombres específicos en PM2:
-
-* **Backend Hono:** `sophia-backend` (ejecutándose en el puerto **5007**)
-* **Frontend Next.js:** `sophia-frontend` (ejecutándose en el puerto **5008**)
-
-El pipeline de CD utiliza el comando `pm2 reload` que recarga el código "en caliente" (zero-downtime) sin detener el servicio. En caso de fallar, realiza un fallback automático a `pm2 restart`.
-
-### Comandos Útiles de PM2 en el VPS:
-
-Para monitorear o gestionar manualmente los servicios en su VPS, conéctese vía SSH y ejecute:
-
-```bash
-# Ver el estado y consumo de todos los servicios
-pm2 list
-
-# Monitorear logs en tiempo real del Backend
-pm2 logs sophia-backend
-
-# Monitorear logs en tiempo real del Frontend
-pm2 logs sophia-frontend
-
-# Reiniciar manualmente el Backend
-pm2 restart sophia-backend
-
-# Reiniciar manualmente el Frontend
-pm2 restart sophia-frontend
-```
-
----
-
-## 🌐 Configuración de Nginx y Recarga (`nginx-reload-g2`)
-
-El servidor web **Nginx** actúa como proxy inverso en el puerto **5002** (HTTPS con SSL configurado). Su bloque de servidor está configurado exactamente así:
+Todo se encuentra centralizado en un único archivo de configuración para Nginx que atiende a ambos dominios (`tallerintegrador1.diegoproyectos.me` y `taller2.diegoproyectos.me`):
 
 ```nginx
+# ==============================================================================
+# BLOQUE 1: TALLER INTEGRADOR 1 (PRODUCCIÓN / DESARROLLO)
+# Dominio: tallerintegrador1.diegoproyectos.me | Backend: 5007 | Frontend: 5008
+# ==============================================================================
 server {
     listen 5002 ssl;
     listen [::]:5002 ssl;
+
     server_name tallerintegrador1.diegoproyectos.me;
 
-    # Certificados SSL
+    # Certificados SSL de Diego (Taller 1)
     ssl_certificate /etc/letsencrypt/live/tallerintegrador1.diegoproyectos.me/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/tallerintegrador1.diegoproyectos.me/privkey.pem;
 
-    # Backend API de Diego (Redirección al puerto 5007 de PM2)
+    location = /api/proyeccion/explicacion {
+        proxy_pass http://[::1]:5008;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Backend API de Diego (Hono Puerto 5007)
     location /api/ {
         proxy_pass http://[::1]:5007;
         proxy_http_version 1.1;
@@ -110,7 +91,33 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Frontend Next.js de Diego (Redirección al puerto 5008 de PM2)
+    location /jupyter/ {
+        proxy_pass http://[::1]:8888;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Soporte obligatorio para WebSockets de Jupyter
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
+
+    # Redireccionar subida de modelo directamente a Hono
+    location /model/upload {
+        proxy_pass http://[::1]:5007/model/upload;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    
+        client_max_body_size 100M;
+    }
+
+    # Frontend Next.js de Diego (Puerto 5008)
     location / {
         proxy_pass http://[::1]:5008;
         proxy_http_version 1.1;
@@ -120,68 +127,116 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
+
+# ==============================================================================
+# BLOQUE 2: TALLER 2 (PRESENTACIÓN / EVALUACIÓN)
+# Dominio: taller2.diegoproyectos.me | Backend: 5017 | Frontend: 5018
+# ==============================================================================
+server {
+    listen 5002 ssl;
+    listen [::]:5002 ssl;
+
+    server_name taller2.diegoproyectos.me;
+
+    # Certificados SSL para Taller 2 (o comodín de diegoproyectos.me)
+    ssl_certificate /etc/letsencrypt/live/tallerintegrador1.diegoproyectos.me/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tallerintegrador1.diegoproyectos.me/privkey.pem;
+
+    location = /api/proyeccion/explicacion {
+        proxy_pass http://[::1]:5018;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Backend API de Taller 2 (Hono Puerto 5017)
+    location /api/ {
+        proxy_pass http://[::1]:5017;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Redireccionar subida de modelo directamente a Hono Taller 2
+    location /model/upload {
+        proxy_pass http://[::1]:5017/model/upload;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    
+        client_max_body_size 100M;
+    }
+
+    # Frontend Next.js de Taller 2 (Puerto 5018)
+    location / {
+        proxy_pass http://[::1]:5018;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
-Dado que su usuario no posee privilegios sudo totales, al final del despliegue automático el pipeline ejecuta:
-```bash
-nginx-reload-g2
-```
-Este script local refresca la caché de Nginx de manera segura y sin interrupciones.
+> **Recargar Nginx:**
+> ```bash
+> nginx-reload-g2
+> ```
 
 ---
 
-## 📓 Integración y Administración de Jupyter Notebooks en el Despliegue
+## 🛠️ Comandos de Inicialización Rápida en el VPS (Primera Vez)
 
-Para hacer que **Jupyter Notebook** funcione perfectamente con este flujo de despliegue y se mantenga actualizado, el sistema opera bajo los siguientes pilares:
-
-### 1. Sincronización Automática de Notebooks y Scripts (.ipynb, .py)
-Dado que el pipeline de GitHub Actions ejecuta `git pull` en la raíz `/var/www/g2-diegoleo` del VPS, **todos sus cuadernos de Jupyter (`.ipynb`), datasets (`.csv`) y scripts de Python (`app.py`, `pipeline_recomendaciones_mvp.py`) se actualizan automáticamente** en el VPS cada vez que hace push a su rama de desarrollo. 
-Al recargar o abrir su Jupyter en el navegador, verá la última versión de sus archivos sincronizada de inmediato.
-
-### 2. Cómo mantener Jupyter siempre corriendo en el VPS (usando PM2)
-Al igual que sus servicios Node, la mejor práctica para ejecutar Jupyter en un entorno VPS sin depender de `sudo` ni de sesiones de terminal abiertas (que se cierran al desconectarse) es **ejecutarlo mediante PM2**. Esto garantiza que Jupyter se inicie automáticamente en el arranque del servidor y se recupere ante cualquier fallo.
-
-Para registrar Jupyter en PM2, ejecute el siguiente comando una sola vez en su terminal del VPS:
+Si vas a levantar **Taller 2** por primera vez en el VPS, puedes ejecutar:
 
 ```bash
-# Si utiliza el entorno de Python global
-pm2 start "jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser" --name "sophia-jupyter"
+# 1. Crear directorio y clonar rama de Taller 2
+cd /var/www
+git clone https://github.com/LeoSanchez22/TallerIntegrador1_Sanchez-R_Sanchez-C.git g2-taller2
+cd /var/www/g2-taller2
+git checkout feature/presentación-taller2
 
-# Si utiliza un entorno virtual (recomendado, ej. carpeta venv en su proyecto)
-pm2 start "/var/www/g2-diegoleo/venv/bin/jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser" --name "sophia-jupyter"
+# 2. Copiar archivos de entorno
+cp /var/www/g2-diegoleo/.env /var/www/g2-taller2/.env
+cp /var/www/g2-diegoleo/backend/.env /var/www/g2-taller2/backend/.env
+cp /var/www/g2-diegoleo/frontend/.env.local /var/www/g2-taller2/frontend/.env.local
+
+# 3. Iniciar Backend Taller 2 en PM2 (Puerto 5017)
+cd /var/www/g2-taller2/backend
+npm install --omit=dev
+PORT=5017 FASTAPI_URL=http://127.0.0.1:8001 pm2 start src/index.js --name "taller2-backend"
+
+# 4. Iniciar Frontend Taller 2 en PM2 (Puerto 5018)
+cd /var/www/g2-taller2/frontend
+npm install
+npm run build
+PORT=5018 pm2 start "npm run start -- -p 5018" --name "taller2-frontend"
+
+# 5. Guardar estado de PM2
+pm2 save
 ```
 
-A partir de ese momento, Jupyter estará bajo el control de PM2. Puede verificarlo, ver logs y reiniciarlo con:
+---
+
+## 📊 Monitoreo y Comandos de PM2
+
 ```bash
+# Ver lista de todas las aplicaciones activas (Taller 1 + Taller 2)
 pm2 list
-pm2 logs sophia-jupyter
-pm2 restart sophia-jupyter
+
+# Ver logs de Taller 2
+pm2 logs taller2-frontend
+pm2 logs taller2-backend
+
+# Ver logs de Taller 1
+pm2 logs sophia-frontend
+pm2 logs sophia-backend
 ```
 
-### 3. Actualización Automática de Librerías de Python en el Despliegue
-Si su proyecto de Python requiere instalar dependencias adicionales de forma automática en cada despliegue, puede añadir este bloque al script del pipeline en `.github/workflows/ci.yml` (sección del script del VPS):
-
-```bash
-# Opcional: Si cuenta con un entorno virtual venv y un archivo requirements.txt
-if [ -f "/var/www/g2-diegoleo/requirements.txt" ]; then
-    echo "🐍 Actualizando dependencias de Python (Pip)..."
-    /var/www/g2-diegoleo/venv/bin/pip install -r /var/www/g2-diegoleo/requirements.txt
-fi
-```
-*(Esto es ideal para que las actualizaciones de paquetes de PyTorch, Streamlit o Pandas ocurran de forma autónoma sin intervención manual).*
-
----
-
-## 🛠️ Resolución de Problemas Comunes
-
-### 1. El pipeline de GitHub Actions se detiene en la etapa de Test
-* **Causa:** Falló alguna prueba de tipos de TypeScript en el Frontend (`tsc --noEmit`) o falló la prueba inicial del Backend (`node --test`).
-* **Solución:** Revise el log del error de GitHub Actions. Corrija los errores en local ejecutando `npm run test` dentro del respectivo componente y haga push con la solución.
-
-### 2. El pipeline se detiene en la etapa de Deploy con error SSH
-* **Causa:** El VPS bloqueó la conexión o la clave privada SSH no está guardada correctamente en los secretos de GitHub.
-* **Solución:** Verifique que el secreto `SSH_PRIVATE_KEY` contenga la llave privada completa (incluyendo las líneas de inicio y fin). Asegúrese de que el VPS acepte conexiones del rango de IPs de GitHub Actions o que no haya reglas de firewall estrictas bloqueándolo.
-
-### 3. Cambios no se reflejan
-* **Causa:** Los procesos de PM2 no pudieron recargarse o Next.js no compiló adecuadamente en el VPS.
-* **Solución:** Conéctese al VPS y revise los logs usando `pm2 logs sophia-frontend`. También compruebe el comando `git status` en la carpeta `/var/www/g2-diegoleo` para asegurar que el repositorio local está sincronizado.

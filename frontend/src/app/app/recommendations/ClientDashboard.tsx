@@ -2,23 +2,30 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { fetchWithAuth } from '../../../lib/apiClient'
-import { ListChecks, Network, TrendingUp, Cpu, PlusCircle, Terminal, CheckCircle2, AlertTriangle } from 'lucide-react'
+import {
+  ListChecks,
+  Sparkles,
+  TrendingUp,
+  Cpu,
+  PlusCircle,
+  Terminal,
+  CheckCircle2,
+  AlertTriangle,
+  LayoutGrid,
+  Table as TableIcon,
+  FileSpreadsheet,
+  Search,
+  Filter,
+  UserPlus,
+  ChevronDown
+} from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 import ClientSelectorDropdown from '../../../components/ClientSelectorDropdown'
 import RecommendationExceptionsBanner from '../../../components/RecommendationExceptionsBanner'
-import XAIAuditCard from '../../../components/XAIAuditCard'
-import AlgorithmicFunnel from '../../../components/AlgorithmicFunnel'
-
-import GrafoCausalMultipartito from '../../../components/GrafoCausalMultipartito'
-import TopologiaRecomendacion from '../../../components/TopologiaRecomendacion'
-import SistemaSolarRecomendaciones from '../../../components/SistemaSolarRecomendaciones'
-import LupaCausalidad from '../../../components/LupaCausalidad'
-import AnalisisBrechas from '../../../components/AnalisisBrechas'
-import MatrizEstadisticaReglas from '../../../components/MatrizEstadisticaReglas'
-import AuditoriaVentaCruzada from '../../../components/AuditoriaVentaCruzada'
-import AuditoriaOportunidadesSecundarias from '../../../components/AuditoriaOportunidadesSecundarias'
-import PolynomialTrendChart from '../../../components/PolynomialTrendChart'
+import RecommendationCard from '../../../components/RecommendationCard'
+import BulkProductUpload from '../../../components/BulkProductUpload'
+import NewCustomerForm from '../../../components/NewCustomerForm'
 
 interface ProyeccionItem {
   producto: string
@@ -31,14 +38,10 @@ interface ProyeccionItem {
   cantidad_sugerida?: number
   ingreso_estimado?: number
   modelo_oculto?: string
+  sub_familia?: string
+  formato?: string
   item_atencion?: string
   peso_atencion?: number
-  detalles_pasos?: {
-    input?: string
-    modelo?: string
-    filtro?: string
-    xai?: string
-  }
 }
 
 interface ProyeccionResponse {
@@ -59,26 +62,6 @@ interface ProyeccionResponse {
   xai_detalles?: any
 }
 
-interface GrafoNodo {
-  id: string
-  label: string
-  layer: number
-  type: string
-  x?: number
-  y?: number
-}
-
-interface GrafoEnlace {
-  source: string
-  target: string
-  type: string
-  label: string
-  x1?: number
-  y1?: number
-  x2?: number
-  y2?: number
-}
-
 function renderBoldText(text: string) {
   if (!text) return '';
   const parts = text.split(/(\*\*?[^*]+\*\*?)/g);
@@ -94,7 +77,22 @@ function renderBoldText(text: string) {
 }
 
 export default function ClientDashboard({ initialData }: { initialData: any[] }) {
-  const [activeTab, setActiveTab] = useState<'inference' | 'register' | 'dlops'>('inference')
+  const [activeTab, setActiveTab] = useState<'inference' | 'new-customer' | 'register' | 'dlops'>('inference')
+  
+  // Custom clients registered during this session
+  const [customClients, setCustomClients] = useState<any[]>([])
+  const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [registerSubTab, setRegisterSubTab] = useState<'bulk' | 'single'>('bulk')
+
+  // Search & Filter state for recommendations
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterCategory, setFilterCategory] = useState<'all' | 'top_seller' | 'preferential' | 'high_prob'>('all')
+
+  // Combined dataset with runtime-registered clients
+  const combinedData = useMemo(() => {
+    return [...(initialData || []), ...customClients]
+  }, [initialData, customClients])
   
   // States for Inference
   const [selectedZona, setSelectedZona] = useState('')
@@ -102,31 +100,75 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [loading, setLoading] = useState(false)
   const [proyeccionData, setProyeccionData] = useState<ProyeccionResponse | null>(null)
   const [activeMes, setActiveMes] = useState('Mes +1 (Próximo Mes)')
-  const [hoveredEnlace, setHoveredEnlace] = useState<any>(null)
-  const [lastActiveLabel, setLastActiveLabel] = useState('Detalle de Relación')
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [theme, setTheme] = useState<'dark' | 'light'>('light')
   const [error, setError] = useState<string | null>(null)
+  const [expandedRecIndex, setExpandedRecIndex] = useState<number | null>(0)
   
   // States for new launch similarity auditing
   const [selectedLanzamientoSim, setSelectedLanzamientoSim] = useState<string>('')
   const [similitudData, setSimilitudData] = useState<any[]>([])
   const [loadingSim, setLoadingSim] = useState(false)
 
-  useEffect(() => {
-    if (hoveredEnlace?.label) {
-      setLastActiveLabel(hoveredEnlace.label)
+  const handleCustomerCreated = (newCust: any) => {
+    const cId = Number(newCust.cliente_id || newCust.id)
+    const cName = newCust.nombre || newCust.name || `Cliente ID ${cId}`
+    const cZona = (newCust.zona || newCust.zona_comercial || 'LIMA CENTRO').toUpperCase()
+    
+    // Map initial purchase items into UI state
+    const itemsToAdd: any[] = []
+    const monthsData = [
+      { num: 1, name: 'MES 1', items: newCust.mes1_items || [] },
+      { num: 2, name: 'MES 2', items: newCust.mes2_items || [] },
+      { num: 3, name: 'MES 3', items: newCust.mes3_items || [] },
+    ]
+
+    monthsData.forEach(m => {
+      if (Array.isArray(m.items) && m.items.length > 0) {
+        m.items.forEach(it => {
+          itemsToAdd.push({
+            cliente_id: cId,
+            cliente: cName,
+            nombre_cliente: cName,
+            zona_comercial: cZona,
+            zona: cZona,
+            vendedor: `PHARMA - ${cZona}`,
+            producto: typeof it === 'string' ? it : (it.producto || 'SOPHIXAL OFTENO'),
+            cantidad: typeof it === 'object' ? (Number(it.cantidad) || 10) : 10,
+            mes_num: m.num,
+            mes_nombre: m.name
+          })
+        })
+      }
+    })
+
+    if (itemsToAdd.length === 0) {
+      itemsToAdd.push({
+        cliente_id: cId,
+        cliente: cName,
+        nombre_cliente: cName,
+        zona_comercial: cZona,
+        zona: cZona,
+        vendedor: `PHARMA - ${cZona}`,
+        producto: 'SOPHIXAL OFTENO',
+        cantidad: 10,
+        mes_num: 1,
+        mes_nombre: 'MES 1'
+      })
     }
-  }, [hoveredEnlace])
+
+    setCustomClients(prev => [...itemsToAdd, ...prev])
+    setSelectedZona(cZona)
+    setSelectedCliente(cId)
+  }
 
   const clientHistory = useMemo(() => {
     if (proyeccionData?.historial_detallado && proyeccionData.historial_detallado.length > 0) {
       return proyeccionData.historial_detallado
     }
-    if (!selectedCliente || !initialData) return []
-    return initialData
+    if (!selectedCliente || !combinedData) return []
+    return combinedData
       .filter(row => Number(row.cliente_id) === Number(selectedCliente))
       .map(row => {
-        // Resolve month robustly like app.py
         let mesText = 'N/D'
         if (row.mes_nombre && String(row.mes_nombre).trim().toLowerCase() !== 'nan') {
           mesText = String(row.mes_nombre).trim().toUpperCase()
@@ -146,7 +188,35 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
           cantidad: Number(row.cantidad) || 1
         }
       })
-  }, [selectedCliente, initialData, proyeccionData])
+  }, [selectedCliente, combinedData, proyeccionData])
+
+  // Filtered active recommendations based on search and category
+  const activeRecommendations = useMemo(() => {
+    if (!proyeccionData || !proyeccionData.proyecciones[activeMes]) return []
+    const list = proyeccionData.proyecciones[activeMes]
+    return list.filter((rec) => {
+      const isTopSeller = Number(rec.probabilidad) >= 80 || rec.motor?.toLowerCase().includes('apriori')
+      const q = searchQuery.toLowerCase().trim()
+      const matchesSearch = !q || 
+        rec.producto.toLowerCase().includes(q) ||
+        (rec.motor && rec.motor.toLowerCase().includes(q)) ||
+        (rec.sub_familia && rec.sub_familia.toLowerCase().includes(q)) ||
+        (rec.justificacion && rec.justificacion.toLowerCase().includes(q))
+
+      if (!matchesSearch) return false
+
+      if (filterCategory === 'top_seller') {
+        return isTopSeller
+      }
+      if (filterCategory === 'high_prob') {
+        return Number(rec.probabilidad) >= 85
+      }
+      if (filterCategory === 'preferential') {
+        return Number(rec.probabilidad) >= 75
+      }
+      return true
+    })
+  }, [proyeccionData, activeMes, searchQuery, filterCategory])
 
   // States for Product Registration
   const [newProduct, setNewProduct] = useState({
@@ -161,9 +231,8 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [regError, setRegError] = useState<string | null>(null)
   const [registeredProducts, setRegisteredProducts] = useState<any[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
-  const [expandedRecIndex, setExpandedRecIndex] = useState<number | null>(0)
 
-  // Fetch registered products from the Hono proxy
+  // Fetch registered products from backend
   async function fetchRegisteredProducts() {
     setLoadingProducts(true)
     try {
@@ -179,7 +248,6 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     }
   }
 
-  // Load products when register tab is active
   useEffect(() => {
     if (activeTab === 'register') {
       fetchRegisteredProducts()
@@ -217,7 +285,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   const [dlopsError, setDlopsError] = useState<string | null>(null)
   const terminalEndRef = useRef<HTMLDivElement>(null)
 
-  // Sync theme changes dynamically to prevent rendering outdated color channels in Recharts
+  // Sync theme changes
   useEffect(() => {
     const checkTheme = () => {
       const isLight = document.documentElement.classList.contains('light')
@@ -230,13 +298,13 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     return () => observer.disconnect()
   }, [])
 
-  // Stable, deterministic sales baseline for the active clients from the database
+  // Stable baseline for sales forecasting
   const baseline = useMemo(() => {
     if (!selectedCliente) return 120000
     return 75000 + (Number(selectedCliente) * 4831) % 180000
   }, [selectedCliente])
 
-  // Process and compute dynamic historical & predictive Attention-Gru sales values
+  // Forecast chart data
   const forecastChartData = useMemo(() => {
     const months = ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar", "Abr (Pred)", "May (Pred)", "Jun (Pred)"]
     
@@ -251,13 +319,13 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       let forecast: number | null = null
 
       if (!isForecast) {
-        const variance = 0.85 + seedRandom(idx) * 0.3 // 85% to 115%
+        const variance = 0.85 + seedRandom(idx) * 0.3
         actual = Math.round(baseline * variance)
         if (idx === 5) {
-          forecast = actual // overlap point for line continuation
+          forecast = actual
         }
       } else {
-        const trend = 1.05 + (idx - 5) * 0.08 // +8%, +16%, +24% Attention-Gru projection curves
+        const trend = 1.05 + (idx - 5) * 0.08
         const variance = trend + (seedRandom(idx) - 0.5) * 0.05
         forecast = Math.round(baseline * variance)
       }
@@ -273,7 +341,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
   // Get unique commercial zones
   const zonas = useMemo(() => {
     const set = new Set<string>()
-    initialData.forEach((row) => {
+    combinedData.forEach((row) => {
       const z = row.zona_comercial || row.zona || row.vendedor
       if (z) set.add(z)
     })
@@ -282,12 +350,12 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       setSelectedZona(list[0])
     }
     return list
-  }, [initialData, selectedZona])
+  }, [combinedData, selectedZona])
 
   // Get clients from selected zone
   const clientesDeZona = useMemo(() => {
     const listMap = new Map<number, string>()
-    initialData.forEach((row) => {
+    combinedData.forEach((row) => {
       const z = row.zona_comercial || row.zona || row.vendedor
       if (z === selectedZona && row.cliente_id) {
         listMap.set(Number(row.cliente_id), row.cliente || row.nombre_cliente || `Cliente ID ${row.cliente_id}`)
@@ -298,7 +366,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       setSelectedCliente(list[0].id)
     }
     return list
-  }, [initialData, selectedZona, selectedCliente])
+  }, [combinedData, selectedZona, selectedCliente])
 
   async function triggerGeminiExplanations(data: ProyeccionResponse) {
     const updatedProyecciones = { ...data.proyecciones };
@@ -320,7 +388,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 mes,
                 lift: item.lift || 1.5,
                 confianza: item.confianza || item.probabilidad || 50,
-                cantidadSugerida: item.cantidad_sugerida || 10,
+                cantidadSugerida: item.cantidad_sugerida || 15,
                 ingresoEstimado: item.ingreso_estimado || 100
               })
             });
@@ -331,11 +399,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 updatedProyecciones[mes] = [...updatedProyecciones[mes]];
                 updatedProyecciones[mes][index] = {
                   ...updatedProyecciones[mes][index],
-                  justificacion: explanation,
-                  detalles_pasos: {
-                    ...(updatedProyecciones[mes][index].detalles_pasos || {}),
-                    xai: explanation
-                  }
+                  justificacion: explanation
                 };
                 setProyeccionData(prev => prev ? { ...prev, proyecciones: { ...updatedProyecciones } } : null);
               }
@@ -350,7 +414,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     await Promise.all(promises);
   }
 
-  // Call the inference engine in the backend
+  // Call inference engine
   async function generarProyecciones() {
     if (!selectedCliente) return
     setLoading(true)
@@ -365,48 +429,52 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       }
       const result = await res.json()
       
+      if (result && result.error) {
+        throw new Error(result.error)
+      }
+
+      if (!result || !result.proyecciones || typeof result.proyecciones !== 'object') {
+        throw new Error("No se obtuvieron proyecciones de recomendación para este cliente.")
+      }
+      
       const normalizedProyecciones: Record<string, any[]> = {}
-      if (result && result.proyecciones) {
-        for (const [mes, items] of Object.entries(result.proyecciones)) {
-          if (Array.isArray(items)) {
-            normalizedProyecciones[mes] = items.map((item: any) => {
-              const producto = item.producto || item["Producto Recomendado"] || item.nombre || "";
-              
-              let probabilidad = 0;
-              const probRaw = item.probabilidad || item["Prioridad de Éxito"];
-              if (probRaw !== undefined) {
-                if (typeof probRaw === "string") {
-                  probabilidad = parseFloat(probRaw.replace("%", ""));
-                } else {
-                  probabilidad = Number(probRaw) * (Number(probRaw) <= 1 ? 100 : 1);
-                }
+      for (const [mes, items] of Object.entries(result.proyecciones)) {
+        if (Array.isArray(items)) {
+          normalizedProyecciones[mes] = items.map((item: any) => {
+            const producto = item.producto || item["Producto Recomendado"] || item.nombre || "";
+            
+            let probabilidad = 0;
+            const probRaw = item.probabilidad || item["Prioridad de Éxito"];
+            if (probRaw !== undefined) {
+              if (typeof probRaw === "string") {
+                probabilidad = parseFloat(probRaw.replace("%", ""));
+              } else {
+                probabilidad = Number(probRaw) * (Number(probRaw) <= 1 ? 100 : 1);
               }
-              if (isNaN(probabilidad) || probabilidad === 0) {
-                probabilidad = 92.3;
-              }
+            }
+            if (isNaN(probabilidad) || probabilidad === 0) {
+              probabilidad = 92.3;
+            }
 
-              const motor = item.motor_origen || item.motor || item["Estrategia Comercial"] || "Atención-GRU";
-              
-              const historial = result.historial || [];
-              const item_atencion = item.item_atencion || item.Item_Atencion || item.item_foco || (historial.length > 0 ? historial[historial.length - 1] : "TRAZIDEX U");
-              
-              const peso_atencion = item.peso_atencion || item.peso || 92.3;
-              const justificacion = item.explicacion || item["Argumento Clínico (Gemini XAI)"] || item.justificacion || "";
+            const motor = item.motor_origen || item.motor || item["Estrategia Comercial"] || "Atención-GRU";
+            const historial = result.historial || [];
+            const item_atencion = item.item_atencion || item.Item_Atencion || item.item_foco || (historial.length > 0 ? historial[historial.length - 1] : "TRAZIDEX U");
+            const peso_atencion = item.peso_atencion || item.peso || 92.3;
+            const justificacion = item.explicacion || item["Argumento Clínico (Gemini XAI)"] || item.justificacion || "";
 
-              return {
-                ...item,
-                producto,
-                probabilidad: isNaN(probabilidad) ? 92.3 : probabilidad,
-                motor,
-                justificacion,
-                modelo_oculto: item.modelo_oculto || item.Modelo_Oculto || motor,
-                item_atencion,
-                peso_atencion
-              };
-            });
-          } else {
-            normalizedProyecciones[mes] = [];
-          }
+            return {
+              ...item,
+              producto,
+              probabilidad: isNaN(probabilidad) ? 92.3 : probabilidad,
+              motor,
+              justificacion,
+              modelo_oculto: item.modelo_oculto || item.Modelo_Oculto || motor,
+              item_atencion,
+              peso_atencion
+            };
+          });
+        } else {
+          normalizedProyecciones[mes] = [];
         }
       }
       
@@ -418,12 +486,12 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       setProyeccionData(normalizedResult)
       triggerGeminiExplanations(normalizedResult)
       
-      const meses = Object.keys(result.proyecciones)
+      const meses = Object.keys(normalizedProyecciones)
       if (meses.length > 0) {
         setActiveMes(meses[0])
       }
     } catch (err: any) {
-      console.error(err)
+      console.error("Error en simulación:", err)
       setError(err.message || "Hubo un error calculando las inferencias del cliente.")
     } finally {
       setLoading(false)
@@ -513,97 +581,43 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
     return () => clearInterval(interval)
   }, [trainingActive])
 
-  // Scroll logs terminal to bottom
   useEffect(() => {
     if (terminalEndRef.current) {
       terminalEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [trainingLogs])
 
-  // Generate interactive SVG Graph
-  const { nodos, enlaces } = useMemo(() => {
-    if (!proyeccionData) return { nodos: [], enlaces: [] }
-
-    const sugeridosActivos = proyeccionData.proyecciones[activeMes] || []
-    
-    const baseNodos: GrafoNodo[] = [
-      { id: `Cliente_${proyeccionData.clienteId}`, label: `Cliente ${proyeccionData.clienteId}`, layer: 0, type: 'cliente' }
-    ]
-    const baseEnlaces: GrafoEnlace[] = []
-
-    const ultimosHistorial = proyeccionData.historial.slice(-5)
-    const itemsAMostrar = new Set(ultimosHistorial)
-
-    sugeridosActivos.forEach(rec => {
-      proyeccionData.historial.forEach(item => {
-        if (rec.justificacion.includes(item)) {
-          itemsAMostrar.add(item)
-        }
-      })
-    })
-
-    const itemsAMostrarArray = Array.from(itemsAMostrar)
-
-    itemsAMostrarArray.forEach(item => {
-      baseNodos.push({ id: item, label: item, layer: 1, type: 'historial' })
-      baseEnlaces.push({ source: `Cliente_${proyeccionData.clienteId}`, target: item, type: 'compra', label: 'Compra' })
-    })
-
-    sugeridosActivos.forEach(rec => {
-      baseNodos.push({ id: rec.producto, label: rec.producto, layer: 2, type: 'proyeccion' })
-      baseEnlaces.push({ source: `Cliente_${proyeccionData.clienteId}`, target: rec.producto, type: 'sugerido', label: rec.motor })
-
-      itemsAMostrarArray.forEach(hist => {
-        if (rec.justificacion.includes(hist)) {
-          baseEnlaces.push({ source: hist, target: rec.producto, type: 'apriori', label: 'Afinidad' })
-        }
-      })
-    })
-
-    const capa0 = baseNodos.filter(n => n.layer === 0)
-    const capa1 = baseNodos.filter(n => n.layer === 1)
-    const capa2 = baseNodos.filter(n => n.layer === 2)
-
-    const height = 480
-    const xCoords = [100, 380, 680]
-    const coordsMap: Record<string, { x: number; y: number }> = {}
-
-    capa0.forEach((nodo) => { coordsMap[nodo.id] = { x: xCoords[0], y: height / 2 } })
-    capa1.forEach((nodo, idx) => { coordsMap[nodo.id] = { x: xCoords[1], y: (height / (capa1.length + 1)) * (idx + 1) } })
-    capa2.forEach((nodo, idx) => { coordsMap[nodo.id] = { x: xCoords[2], y: (height / (capa2.length + 1)) * (idx + 1) } })
-
-    return {
-      nodos: baseNodos.map(nodo => ({ ...nodo, x: coordsMap[nodo.id]?.x || 0, y: coordsMap[nodo.id]?.y || 0 })),
-      enlaces: baseEnlaces.map(enlace => ({
-        ...enlace,
-        x1: coordsMap[enlace.source]?.x || 0,
-        y1: coordsMap[enlace.source]?.y || 0,
-        x2: coordsMap[enlace.target]?.x || 0,
-        y2: coordsMap[enlace.target]?.y || 0
-      }))
-    }
-  }, [proyeccionData, activeMes])
-
   return (
     <div className="space-y-8">
-      {/* TABS DE SECCIÓN PREMIUM */}
+      {/* TABS DE SECCIÓN EXECUTIVE */}
       <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-px gap-1 sm:gap-2 overflow-x-auto custom-scrollbar no-scrollbar">
         <button
           onClick={() => setActiveTab('inference')}
           className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
             activeTab === 'inference'
-              ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
-          <Network className="w-4 h-4 flex-shrink-0" />
-          <span>Recomendaciones & XAI</span>
+          <Sparkles className="w-4 h-4 flex-shrink-0" />
+          <span>Oportunidades & Recomendaciones</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('new-customer')}
+          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
+            activeTab === 'new-customer'
+              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
+              : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+          }`}
+        >
+          <UserPlus className="w-4 h-4 flex-shrink-0" />
+          <span>Registrar Nuevo Cliente</span>
         </button>
         <button
           onClick={() => setActiveTab('register')}
           className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
             activeTab === 'register'
-              ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
@@ -614,7 +628,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
           onClick={() => setActiveTab('dlops')}
           className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
             activeTab === 'dlops'
-              ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
               : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
           }`}
         >
@@ -626,13 +640,13 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
       {/* CONTENIDO TAB 1: INFERENCIAS */}
       {activeTab === 'inference' && (
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 items-start">
-          {/* CONTROL PANEL */}
+          {/* CONTROL PANEL / SIDEBAR */}
           <aside className="w-full lg:w-[320px] flex-shrink-0">
-            <div className="sticky top-20 sm:top-24 bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl transition-all duration-200">
+            <div className="sticky top-20 sm:top-24 bg-white dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl transition-all duration-200">
               <div className="flex items-center space-x-3 mb-6 sm:mb-8 pb-3 sm:pb-4 border-b border-neutral-200 dark:border-neutral-800">
-                <div className="w-2.5 h-6 sm:w-3 sm:h-8 bg-emerald-500 rounded-sm"></div>
+                <div className="w-2.5 h-6 sm:w-3 sm:h-8 bg-sophia-blue rounded-sm"></div>
                 <h2 className="text-lg sm:text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
-                  Filtros
+                  Filtros de Cartera
                 </h2>
               </div>
               
@@ -644,17 +658,17 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   clientes={clientesDeZona}
                   selectedCliente={selectedCliente}
                   onSelectCliente={setSelectedCliente}
+                  onOpenNewCustomerModal={() => setActiveTab('new-customer')}
                 />
-              </div>
 
                 <button
                   onClick={generarProyecciones}
                   disabled={loading || !selectedCliente}
-                  className="w-full mt-6 py-4 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-sm font-black tracking-widest uppercase rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center space-x-2"
+                  className="w-full mt-4 py-4 bg-sophia-blue hover:bg-sophia-blue-600 text-white text-sm font-black tracking-widest uppercase rounded-xl transition-all shadow-md shadow-sophia-blue/20 hover:shadow-sophia-blue/40 active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center space-x-2 min-h-[44px]"
                 >
                   {loading ? (
                     <>
-                      <svg className="animate-spin h-5 w-5 text-neutral-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                       <span>Procesando...</span>
                     </>
                   ) : (
@@ -662,15 +676,16 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   )}
                 </button>
               </div>
+            </div>
           </aside>
 
           {/* MAIN INFERENCE VIEW */}
           <main className="flex-1 w-full min-w-0">
             {error && (
               <div className="text-center p-12 mb-6 bg-red-900/20 rounded-3xl border border-red-800/50 shadow-2xl animate-fadeIn">
-                <p className="text-red-400 text-xl font-bold mb-2">Error de Simulación: {error}</p>
-                <p className="text-neutral-400 text-sm">
-                  Verifique si el servicio de Python (`servidor_front.py`) está activo o si el CLI de Python de respaldo está correctamente configurado con el entorno virtual `.venv`.
+                <p className="text-red-500 dark:text-red-400 text-xl font-bold mb-2">Error de Simulación: {error}</p>
+                <p className="text-neutral-500 dark:text-neutral-400 text-sm">
+                  Verifique que los servicios backend estén activos o intente nuevamente.
                 </p>
               </div>
             )}
@@ -678,28 +693,26 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
             {!loading && !proyeccionData && (
               <div className="flex flex-col items-center justify-center p-20 bg-white dark:bg-neutral-900/40 rounded-3xl border border-neutral-200 dark:border-neutral-800/50 h-[calc(100vh-20rem)] min-h-[500px] text-center shadow-xl transition-all duration-200">
                 <div className="w-20 h-20 rounded-3xl bg-neutral-100 dark:bg-neutral-800/50 flex items-center justify-center mb-6 border border-neutral-200 dark:border-neutral-700/50 shadow-inner">
-                  <svg className="w-10 h-10 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                  <Sparkles className="w-10 h-10 text-sophia-blue dark:text-sophia-blue-400" />
                 </div>
-                <h3 className="text-2xl font-black text-neutral-900 dark:text-white mb-3 tracking-tight">Listo para Inferencia</h3>
+                <h3 className="text-2xl font-black text-neutral-900 dark:text-white mb-3 tracking-tight">Listo para Proyección Comercial</h3>
                 <p className="text-neutral-500 dark:text-neutral-400 font-medium max-w-md leading-relaxed">
-                  Seleccione una zona y una institución comercial en el panel izquierdo para iniciar el análisis predictivo y el modelado de afinidad XAI.
+                  Seleccione una zona y una institución comercial en el panel izquierdo para calcular las oportunidades de venta e inventario optimizado.
                 </p>
               </div>
             )}
 
             {proyeccionData && !loading && (
               <div className="space-y-8 animate-fadeIn">
-                {/* TABS NAVEGACIÓN */}
-                <div className="flex bg-neutral-100 dark:bg-neutral-900/80 p-2 rounded-2xl border border-neutral-200 dark:border-neutral-800/80 w-full shadow-lg transition-colors">
+                {/* TABS HORIZONTE MENSUAL */}
+                <div className="flex bg-neutral-100 dark:bg-neutral-900/80 p-1.5 rounded-2xl border border-neutral-200 dark:border-neutral-800/80 w-full shadow-md transition-colors gap-1.5">
                   {Object.keys(proyeccionData.proyecciones).map((mes) => (
                     <button
                       key={mes}
                       onClick={() => { setActiveMes(mes); setExpandedRecIndex(0); }}
-                      className={`flex-1 py-3.5 px-4 rounded-xl text-xs font-black tracking-wider transition-all uppercase ${
+                      className={`flex-1 py-3 px-4 rounded-xl text-xs font-black tracking-wider transition-all uppercase min-h-[40px] ${
                         activeMes === mes
-                          ? 'bg-emerald-500 text-neutral-950 shadow-[0_0_20px_rgba(16,185,129,0.3)]'
+                          ? 'bg-sophia-blue text-white shadow-md'
                           : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'
                       }`}
                     >
@@ -708,247 +721,214 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   ))}
                 </div>
 
-                {/* SUGERENCIAS ESTRATÉGICAS */}
+                {/* SECCIÓN PRINCIPAL: OPORTUNIDADES COMERCIALES & RECOMENDACIONES */}
                 <div className="w-full space-y-6">
-                  <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                    <ListChecks className="w-6 h-6 text-emerald-500 dark:text-emerald-400" />
-                    <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                      Productos a incorporar
-                    </h4>
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-neutral-900/60 p-4 sm:p-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2.5 h-6 bg-sophia-blue rounded-sm"></div>
+                      <ListChecks className="w-6 h-6 text-sophia-blue dark:text-sophia-blue-400" />
+                      <h4 className="text-base sm:text-lg font-black tracking-wide uppercase text-neutral-850 dark:text-white">
+                        Oportunidades Comerciales & Recomendaciones
+                      </h4>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Search Bar */}
+                      <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+                        <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Buscar producto..."
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs font-semibold focus:outline-none focus:border-sophia-blue dark:focus:border-sophia-blue-400 transition-all text-neutral-900 dark:text-white"
+                        />
+                      </div>
+
+                      {/* Category Filter Dropdown */}
+                      <div className="relative">
+                        <select
+                          value={filterCategory}
+                          onChange={(e: any) => setFilterCategory(e.target.value)}
+                          className="appearance-none pl-3 pr-8 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs font-bold focus:outline-none focus:border-sophia-blue dark:focus:border-sophia-blue-400 transition-all text-neutral-800 dark:text-neutral-200 cursor-pointer"
+                        >
+                          <option value="all">Todas las Oportunidades</option>
+                          <option value="top_seller">🔥 Más Vendidos</option>
+                          <option value="preferential">🏷️ Precio Preferencial</option>
+                          <option value="high_prob">⭐ Alta Afinidad (≥85%)</option>
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+
+                      {/* Selector de Modo de Vista */}
+                      <div className="flex items-center bg-neutral-100 dark:bg-neutral-950 p-1 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('cards')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+                            viewMode === 'cards'
+                              ? 'bg-sophia-blue text-white shadow-sm'
+                              : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          <span>Tarjetas</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('table')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+                            viewMode === 'table'
+                              ? 'bg-sophia-blue text-white shadow-sm'
+                              : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <TableIcon className="w-3.5 h-3.5" />
+                          <span>Matriz</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
-                    <table className="w-full text-left border-collapse table-auto">
-                      <thead>
-                        <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Producto</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-32">Probabilidad</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase hidden sm:table-cell">Modelo</th>
-                          <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Justificación Comercial</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-neutral-950/40 divide-y divide-neutral-200 dark:divide-neutral-800/60">
-                        {(proyeccionData.proyecciones[activeMes] || []).map((rec, i) => {
-                          const isExpanded = expandedRecIndex === i
-                          return (
-                            <React.Fragment key={`rec-wrapper-${i}`}>
-                              <tr
-                                onClick={() => setExpandedRecIndex(isExpanded ? null : i)}
-                                className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors group cursor-pointer border-b border-neutral-200 dark:border-neutral-800/60"
-                              >
-                                <td className="p-3 md:p-4 font-bold text-neutral-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-xs md:text-sm break-words">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-neutral-400 dark:text-neutral-600 font-mono text-[9px] select-none">
-                                      {isExpanded ? '▼' : '▶'}
+
+                  {/* VISTA 1: GRID DE TARJETAS COMERCIALES B2B */}
+                  {viewMode === 'cards' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
+                      {activeRecommendations.map((rec, i) => (
+                        <RecommendationCard
+                          key={`rec-card-${i}`}
+                          item={{
+                            producto: rec.producto,
+                            probabilidad: rec.probabilidad,
+                            motor: rec.motor,
+                            justificacion: rec.justificacion,
+                            detonante: rec.detonante,
+                            lift: rec.lift,
+                            confianza: rec.confianza,
+                            cantidad_sugerida: rec.cantidad_sugerida,
+                            ingreso_estimado: rec.ingreso_estimado,
+                            modelo_oculto: rec.modelo_oculto,
+                            sub_familia: rec.sub_familia,
+                            formato: rec.formato,
+                            isTopSeller: Number(rec.probabilidad) >= 80,
+                            discountPercentage: Number(rec.probabilidad) > 75 ? 15 : 10
+                          }}
+                          onOpenAudit={() => {
+                            setViewMode('table')
+                            setExpandedRecIndex(i)
+                          }}
+                        />
+                      ))}
+                      {activeRecommendations.length === 0 && (
+                        <div className="col-span-full text-center p-12 bg-white dark:bg-neutral-900/40 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium text-sm">
+                          No se encontraron recomendaciones con el filtro o búsqueda actual.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* VISTA 2: TABLA DETALLADA COMERCIAL */}
+                  {viewMode === 'table' && (
+                    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors animate-fadeIn">
+                      <table className="w-full text-left border-collapse table-auto">
+                        <thead>
+                          <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
+                            <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Producto</th>
+                            <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-32">Probabilidad</th>
+                            <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase hidden sm:table-cell">Estrategia</th>
+                            <th className="p-3 md:p-4 text-[10px] md:text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Justificación Comercial</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-neutral-950/40 divide-y divide-neutral-200 dark:divide-neutral-800/60">
+                          {activeRecommendations.map((rec, i) => {
+                            const isExpanded = expandedRecIndex === i
+                            return (
+                              <React.Fragment key={`rec-wrapper-${i}`}>
+                                <tr
+                                  onClick={() => setExpandedRecIndex(isExpanded ? null : i)}
+                                  className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors group cursor-pointer border-b border-neutral-200 dark:border-neutral-800/60"
+                                >
+                                  <td className="p-3 md:p-4 font-bold text-neutral-900 dark:text-white group-hover:text-sophia-blue dark:group-hover:text-sophia-blue-300 transition-colors text-xs md:text-sm break-words">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-neutral-400 dark:text-neutral-600 font-mono text-[9px] select-none">
+                                        {isExpanded ? '▼' : '▶'}
+                                      </span>
+                                      <span>{rec.producto}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 md:p-4">
+                                    <span className="text-[10px] md:text-xs font-black px-2 py-1 md:px-3 md:py-1.5 bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 rounded-lg">
+                                      {rec.probabilidad}%
                                     </span>
-                                    <span>{rec.producto}</span>
-                                  </div>
-                                </td>
-                                <td className="p-3 md:p-4">
-                                  <span className="text-[10px] md:text-xs font-black px-2 py-1 md:px-3 md:py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
-                                    {rec.probabilidad}%
-                                  </span>
-                                </td>
-                                <td className="p-3 md:p-4 hidden sm:table-cell">
-                                  <span className="text-[9px] md:text-[10px] font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm whitespace-nowrap">
-                                    {rec.motor}
-                                  </span>
-                                </td>
-                                <td className="p-3 md:p-4 text-xs md:text-sm text-neutral-700 dark:text-neutral-300 leading-snug md:leading-relaxed font-medium break-words">
-                                  <div className="flex justify-between items-center">
-                                    <span className="line-clamp-2 md:line-clamp-none">{rec.justificacion}</span>
-                                    <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-bold ml-4 underline flex-shrink-0 select-none">
-                                      {isExpanded ? 'Ocultar' : 'Ver detalles'}
+                                  </td>
+                                  <td className="p-3 md:p-4 hidden sm:table-cell">
+                                    <span className="text-[9px] md:text-[10px] font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm whitespace-nowrap">
+                                      {rec.motor}
                                     </span>
-                                  </div>
-                                </td>
-                              </tr>
-                              {isExpanded && (
-                                <tr className="bg-neutral-50/50 dark:bg-neutral-900/40">
-                                  <td colSpan={4} className="p-6 border-b border-neutral-200 dark:border-neutral-800/60">
-                                    <div className="space-y-4 animate-fadeIn max-w-4xl">
-                                      <div className="border-l-4 border-emerald-500 pl-4 py-1">
-                                        <h5 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                                          Justificación Comercial Completa (Gemini XAI)
-                                        </h5>
-                                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider mt-1">
-                                          Modelo Activo: {rec.modelo_oculto || rec.motor || 'IA Híbrida'} {rec.item_atencion ? `| Detonante de Inferencia: ${rec.item_atencion}` : ''}
-                                        </p>
-                                      </div>
-                                      <div className="bg-white dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm leading-relaxed text-sm text-neutral-850 dark:text-neutral-200 whitespace-pre-wrap font-medium">
-                                        {renderBoldText(rec.justificacion)}
-                                      </div>
+                                  </td>
+                                  <td className="p-3 md:p-4 text-xs md:text-sm text-neutral-700 dark:text-neutral-300 leading-snug md:leading-relaxed font-medium break-words">
+                                    <div className="flex justify-between items-center">
+                                      <span className="line-clamp-2 md:line-clamp-none">{rec.justificacion}</span>
+                                      <span className="text-[10px] text-sophia-blue dark:text-sophia-blue-400 font-bold ml-4 underline flex-shrink-0 select-none">
+                                        {isExpanded ? 'Ocultar' : 'Ver detalle'}
+                                      </span>
                                     </div>
                                   </td>
                                 </tr>
-                              )}
-                            </React.Fragment>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                {isExpanded && (
+                                  <tr className="bg-neutral-50/50 dark:bg-neutral-900/40">
+                                    <td colSpan={4} className="p-6 border-b border-neutral-200 dark:border-neutral-800/60">
+                                      <div className="space-y-4 animate-fadeIn max-w-4xl">
+                                        <div className="border-l-4 border-sophia-blue pl-4 py-1">
+                                          <h5 className="text-xs font-black uppercase tracking-widest text-sophia-blue dark:text-sophia-blue-400">
+                                            Argumento Comercial de Ventas
+                                          </h5>
+                                          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider mt-1">
+                                            Estrategia: {rec.motor || 'IA Comercial'} {rec.item_atencion ? `| Detonante de Inferencia: ${rec.item_atencion}` : ''}
+                                          </p>
+                                        </div>
+                                        <div className="bg-white dark:bg-neutral-950 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm leading-relaxed text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap font-medium">
+                                          {renderBoldText(rec.justificacion)}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            )
+                          })}
+                          {activeRecommendations.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center bg-neutral-50 dark:bg-neutral-900/40 text-neutral-500 dark:text-neutral-400 font-medium">
+                                No se encontraron recomendaciones con el filtro o búsqueda actual.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
                   {/* BANNER DE EXCEPCIÓN ALGORÍTMICA */}
                   {(proyeccionData.excepciones?.[activeMes] || (proyeccionData.proyecciones[activeMes] || []).length === 0) && (
                     <RecommendationExceptionsBanner
                       mensaje={
                         proyeccionData.excepciones?.[activeMes] ||
-                        "No se emitieron recomendaciones adicionales para este período debido a filtros de canibalización o límites deterministas."
+                        "No se emitieron recomendaciones adicionales para este período debido a filtros de canibalización o límites de cartera."
                       }
                     />
                   )}
-
-                  {/* 1. AUDITORÍA DE INTELIGENCIA EXPLICABLE (XAI) */}
-                  <div className="space-y-4 pt-2">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500">
-                      1. Auditoría de Inteligencia Explicable (XAI)
-                    </h4>
-                    {(proyeccionData.proyecciones[activeMes] || []).map((rec: any, idx: number) => (
-                      <XAIAuditCard
-                        key={idx}
-                        producto={rec.producto}
-                        motor={rec.motor}
-                        detonante={rec.detonante}
-                        cantidadSugerida={rec.cantidad_sugerida}
-                        ingresoEstimado={rec.ingreso_estimado}
-                        justificacion={rec.justificacion}
-                        probabilidad={rec.probabilidad}
-                      />
-                    ))}
-                  </div>
-
-                  {/* 2. GRAFO CAUSAL MULTIPARTITO (CAJA DE CRISTAL) */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      2. Grafo Causal Multipartito (Caja de Cristal)
-                    </h4>
-                    <GrafoCausalMultipartito
-                      clienteId={proyeccionData.clienteId}
-                      historial={proyeccionData.historial || []}
-                      recomendaciones={proyeccionData.proyecciones[activeMes] || []}
-                    />
-                  </div>
-
-                  {/* 3. ANÁLISIS MATEMÁTICO DE TENDENCIA (REGRESIÓN POLINOMIAL) */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      3. Análisis Matemático de Tendencia (Regresión Polinomial)
-                    </h4>
-                    <PolynomialTrendChart
-                      clienteId={proyeccionData.clienteId}
-                      data={proyeccionData.tendencia_polinomial}
-                    />
-                  </div>
-
-                  {/* 4. TOPOLOGÍA DE RECOMENDACIÓN (REGLAS DE ASOCIACIÓN Y SIMILITUD) */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      4. Topología de Recomendación (Reglas de Asociación y Similitud)
-                    </h4>
-                    <TopologiaRecomendacion
-                      clienteId={proyeccionData.clienteId}
-                      historial={proyeccionData.historial || []}
-                      recomendaciones={proyeccionData.proyecciones[activeMes] || []}
-                    />
-                  </div>
-
-                  {/* 5. SISTEMA SOLAR DE RECOMENDACIONES (CAUSALIDAD EXACTA) */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      5. Sistema Solar de Recomendaciones (Causalidad Exacta)
-                    </h4>
-                    <SistemaSolarRecomendaciones
-                      clienteId={proyeccionData.clienteId}
-                      historial={proyeccionData.historial || []}
-                      recomendaciones={proyeccionData.proyecciones[activeMes] || []}
-                    />
-                  </div>
-
-                  {/* 6. LUPA DE CAUSALIDAD (TRANSPARENCIA DEL ALGORITMO) */}
-                  <div className="space-y-4 pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500">
-                      6. Lupa de Causalidad (Transparencia del Algoritmo)
-                    </h4>
-                    {(proyeccionData.proyecciones[activeMes] || []).map((rec: any, idx: number) => (
-                      <LupaCausalidad
-                        key={idx}
-                        ancla={rec.detonante || 'Historial Cliente'}
-                        sugerencia={rec.producto}
-                        lift={rec.lift || '1.5'}
-                        confianza={rec.confianza || rec.probabilidad}
-                        motor={rec.motor}
-                      />
-                    ))}
-                  </div>
-
-                  {/* 7. ANÁLISIS DE BRECHAS: CLIENTE VS. MERCADO NACIONAL */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      7. Análisis de Brechas: Cliente vs. Mercado Nacional
-                    </h4>
-                    <AnalisisBrechas
-                      data={proyeccionData.brechas_mercado || []}
-                      clienteId={proyeccionData.clienteId}
-                    />
-                  </div>
-
-                  {/* 8. MATRIZ ESTADÍSTICA DE REGLAS DE ASOCIACIÓN (APRIORI) */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      8. Matriz Estadística de Reglas de Asociación (Apriori)
-                    </h4>
-                    <MatrizEstadisticaReglas
-                      data={proyeccionData.matriz_apriori || []}
-                      clienteId={proyeccionData.clienteId}
-                    />
-                  </div>
-
-                  {/* 9. AUDITORÍA DE VENTA CRUZADA (TRAZABILIDAD APRIORI) */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      9. Auditoría de Venta Cruzada (Trazabilidad Apriori)
-                    </h4>
-                    <AuditoriaVentaCruzada
-                      data={proyeccionData.matriz_apriori || []}
-                      clienteId={proyeccionData.clienteId}
-                    />
-                  </div>
-
-                  {/* 10. AUDITORÍA DE OPORTUNIDADES SECUNDARIAS */}
-                  <div className="pt-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-2">
-                      10. Auditoría de Oportunidades Secundarias
-                    </h4>
-                    <AuditoriaOportunidadesSecundarias
-                      data={proyeccionData.reglas_latentes || []}
-                    />
-                  </div>
-
-                  {/* EMBUDO DEL PIPELINE */}
-                  <div className="pt-6">
-                    <AlgorithmicFunnel />
-                  </div>
                 </div>
-
-
-
-
 
                 {/* HISTORIAL DE CONSUMO TRANSACCIONAL */}
                 <div className="w-full space-y-6">
                   <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                    <svg className="w-6 h-6 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                    </svg>
+                    <div className="w-2.5 h-6 bg-sophia-blue rounded-sm"></div>
                     <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
                       Historial de Consumo Comprador
                     </h4>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
+                  <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-xl bg-white dark:bg-neutral-950/40 w-full overflow-hidden transition-colors">
                     <table className="w-full text-left border-collapse table-auto">
                       <thead>
                         <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
@@ -978,8 +958,8 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                               </td>
                               <td className="p-3 md:p-4">
                                 {isLast ? (
-                                  <span className="text-[10px] font-black uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-md shadow-sm">
-                                    Última Compra (Detonante de Inferencia)
+                                  <span className="text-[10px] font-black uppercase bg-sophia-blue/10 border border-sophia-blue/30 text-sophia-blue dark:text-sophia-blue-300 px-2.5 py-1 rounded-md shadow-sm">
+                                    Última Compra (Detonante)
                                   </span>
                                 ) : (
                                   <span className="text-[10px] font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">
@@ -1002,13 +982,11 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   </div>
                 </div>
 
-
-
                 {/* DIAGNÓSTICO DE VIABILIDAD: NUEVOS LANZAMIENTOS (TF-IDF) */}
                 {proyeccionData.xai_detalles?.hay_productos_nuevos && proyeccionData.xai_detalles?.recs_nuevos_cliente && proyeccionData.xai_detalles.recs_nuevos_cliente.length > 0 && (
-                  <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-200 space-y-6">
+                  <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-200 space-y-6">
                     <div className="flex items-center space-x-3 mb-4">
-                      <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                      <div className="w-2.5 h-6 bg-sophia-blue rounded-sm"></div>
                       <h4 className="text-lg font-black tracking-widest uppercase text-neutral-850 dark:text-neutral-200">
                         Viabilidad: Nuevos Lanzamientos (TF-IDF)
                       </h4>
@@ -1030,14 +1008,14 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                           {proyeccionData.xai_detalles.recs_nuevos_cliente.map((rn: any, idx: number) => (
                             <tr key={idx} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors text-neutral-700 dark:text-neutral-300 font-medium">
                               <td className="p-3 font-bold text-neutral-950 dark:text-white uppercase">{rn.lanzamiento}</td>
-                              <td className="p-3 text-center font-bold text-emerald-600 dark:text-emerald-400">{rn.afinidad}</td>
+                              <td className="p-3 text-center font-bold text-sophia-blue dark:text-sophia-blue-400">{rn.afinidad}</td>
                               <td className="p-3 font-semibold uppercase">{rn.producto_ancla}</td>
                               <td className="p-3">
                                 <span className={`px-2.5 py-1 rounded-md text-xs font-black uppercase ${
                                   rn.diagnostico.includes('Altamente')
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    ? 'bg-sophia-blue/10 text-sophia-blue dark:text-sophia-blue-300'
                                     : rn.diagnostico.includes('Recomendable')
-                                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                    ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300'
                                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'
                                 }`}>
                                   {rn.diagnostico}
@@ -1051,70 +1029,17 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   </div>
                 )}
 
-                {/* TELEMETRÍA DE BACKTESTING (XAI) */}
-                {proyeccionData.xai_detalles?.telemetria && (
-                  <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-200 space-y-6">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="w-2 h-6 bg-blue-500 rounded-sm shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                      <h4 className="text-lg font-black tracking-widest uppercase text-neutral-850 dark:text-neutral-200">
-                        Telemetría por Cliente
-                      </h4>
-                    </div>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      Métricas de validación en tiempo real calculadas sobre una cohorte del territorio comercial del cliente, simulando el desempeño predictivo frente al comportamiento real.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                      <div className="p-5 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Hit Rate @ 5 (Precisión)</div>
-                        <div className="text-3xl font-black text-neutral-900 dark:text-white mt-2">
-                          {proyeccionData.xai_detalles.telemetria.hit_rate_5}
-                        </div>
-                        <div className="text-[10px] text-emerald-500 dark:text-emerald-400 font-semibold mt-2">
-                          Meta: ≥ 70%
-                        </div>
-                      </div>
-                      <div className="p-5 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-neutral-500">NDCG @ 5 (Ranking de Relevancia)</div>
-                        <div className="text-3xl font-black text-neutral-900 dark:text-white mt-2">
-                          {proyeccionData.xai_detalles.telemetria.ndcg_5}
-                        </div>
-                        <div className="text-[10px] text-blue-500 dark:text-blue-400 font-semibold mt-2">
-                          Escala: 0.00 a 1.00
-                        </div>
-                      </div>
-                      <div className="p-5 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Pico de Atención Recurrente</div>
-                        <div className="text-3xl font-black text-neutral-900 dark:text-white mt-2">
-                          {proyeccionData.xai_detalles.telemetria.pico_atencion}
-                        </div>
-                        <div className="text-[10px] text-amber-500 dark:text-amber-400 font-semibold mt-2">
-                          Relevancia máxima temporal
-                        </div>
-                      </div>
-                      <div className="p-5 bg-neutral-100 dark:bg-neutral-950 rounded-2xl border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Cobertura de Catálogo Zonal</div>
-                        <div className="text-3xl font-black text-neutral-900 dark:text-white mt-2">
-                          {proyeccionData.xai_detalles.telemetria.cobertura_catalogo}
-                        </div>
-                        <div className="text-[10px] text-purple-500 dark:text-purple-400 font-semibold mt-2">
-                          % de SKU sugeridos
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* VENTAS VS PREDICCION */}
-                <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 shadow-2xl transition-all duration-200">
+                {/* FORECASTING: VENTAS VS PREDICCIÓN */}
+                <div className="w-full bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-200">
                   <div className="flex items-center space-x-3 mb-6">
-                    <div className="w-2 h-6 bg-[#00B4D8] rounded-sm shadow-[0_0_10px_rgba(0,180,216,0.5)]"></div>
-                    <TrendingUp className="w-6 h-6 text-[#00B4D8]" />
+                    <div className="w-2.5 h-6 bg-sophia-blue rounded-sm"></div>
+                    <TrendingUp className="w-6 h-6 text-sophia-blue dark:text-sophia-blue-400" />
                     <div>
                       <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                        Ventas Históricas vs Predicción Attention-Gru
+                        Ventas Históricas vs Proyección Trimestral (Attention-GRU)
                       </h4>
                       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                        Forecasting a 3 meses con predicciones de red neuronal Attention-Gru (basado en {clientesDeZona.length || 46} clientes activos)
+                        Pronóstico de demanda a 3 meses modelado por red neuronal recurrente Attention-GRU ({clientesDeZona.length || 46} clientes analizados en la zona)
                       </p>
                     </div>
                   </div>
@@ -1127,23 +1052,23 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                       >
                         <defs>
                           <linearGradient id="colorHistorial" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={theme === 'light' ? "#3b82f6" : "#3b82f6"} stopOpacity={theme === 'light' ? 0.15 : 0.35}/>
-                            <stop offset="95%" stopColor={theme === 'light' ? "#3b82f6" : "#3b82f6"} stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#113F9C" stopOpacity={theme === 'light' ? 0.2 : 0.4}/>
+                            <stop offset="95%" stopColor="#113F9C" stopOpacity={0}/>
                           </linearGradient>
                           <linearGradient id="colorAttentionGru" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#00B4D8" stopOpacity={theme === 'light' ? 0.15 : 0.35}/>
-                            <stop offset="95%" stopColor="#00B4D8" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#0284C7" stopOpacity={theme === 'light' ? 0.2 : 0.4}/>
+                            <stop offset="95%" stopColor="#0284C7" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#f3f4f6" : "#262626"} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#f1f5f9" : "#262626"} />
                         <XAxis 
                           dataKey="month" 
-                          stroke={theme === 'light' ? "#6b7280" : "#a3a3a3"} 
+                          stroke={theme === 'light' ? "#64748b" : "#a3a3a3"} 
                           fontSize={11}
                           fontWeight="semibold"
                         />
                         <YAxis 
-                          stroke={theme === 'light' ? "#6b7280" : "#a3a3a3"} 
+                          stroke={theme === 'light' ? "#64748b" : "#a3a3a3"} 
                           fontSize={11}
                           fontWeight="semibold"
                           tickFormatter={(value) => `S/ ${value.toLocaleString()}`}
@@ -1151,9 +1076,9 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                         <Tooltip
                           contentStyle={{
                             backgroundColor: theme === 'light' ? "white" : "#171717",
-                            border: `1px solid ${theme === 'light' ? "#e5e7eb" : "#262626"}`,
+                            border: `1px solid ${theme === 'light' ? "#e2e8f0" : "#262626"}`,
                             borderRadius: "16px",
-                            color: theme === 'light' ? "#171717" : "white",
+                            color: theme === 'light' ? "#0f172a" : "white",
                             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)"
                           }}
                           formatter={(value: any) => [`S/ ${value.toLocaleString()}`, '']}
@@ -1165,7 +1090,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                         <Area
                           type="monotone"
                           dataKey="Ventas Históricas"
-                          stroke="#3b82f6"
+                          stroke="#113F9C"
                           strokeWidth={3}
                           fillOpacity={1}
                           fill="url(#colorHistorial)"
@@ -1175,7 +1100,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                         <Area
                           type="monotone"
                           dataKey="Predicción Attention-Gru"
-                          stroke="#00B4D8"
+                          stroke="#0284C7"
                           strokeWidth={3}
                           strokeDasharray="6 6"
                           fillOpacity={1}
@@ -1193,220 +1118,265 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
         </div>
       )}
 
+      {/* CONTENIDO TAB: REGISTRAR NUEVO CLIENTE */}
+      {activeTab === 'new-customer' && (
+        <div className="max-w-5xl mx-auto animate-fadeIn">
+          <NewCustomerForm
+            embedded={true}
+            zonasDisponibles={zonas.length > 0 ? zonas : undefined}
+            onCustomerCreated={(newCust) => {
+              handleCustomerCreated(newCust)
+              setActiveTab('inference')
+            }}
+          />
+        </div>
+      )}
+
       {/* CONTENIDO TAB 2: REGISTRO DE FÁRMACOS */}
       {activeTab === 'register' && (
-        <div className="max-w-3xl mx-auto animate-fadeIn">
-          <div className="bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl transition-all">
-            <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
-              <PlusCircle className="w-6 h-6 text-emerald-500" />
-              <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
-                Registrar Nuevo Lanzamiento
-              </h3>
-            </div>
+        <div className="max-w-4xl mx-auto animate-fadeIn space-y-8">
+          {/* Selector de Sub-pestaña: Carga Masiva vs Registro Individual */}
+          <div className="flex bg-neutral-100 dark:bg-neutral-900/80 p-1.5 rounded-2xl border border-neutral-200 dark:border-neutral-800">
+            <button
+              type="button"
+              onClick={() => setRegisterSubTab('bulk')}
+              className={`flex-1 py-3 px-4 rounded-xl text-xs font-black tracking-wider uppercase transition-all flex items-center justify-center gap-2 min-h-[44px] ${
+                registerSubTab === 'bulk'
+                  ? 'bg-sophia-blue text-white shadow-md'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Importación Masiva Excel / CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRegisterSubTab('single')}
+              className={`flex-1 py-3 px-4 rounded-xl text-xs font-black tracking-wider uppercase transition-all flex items-center justify-center gap-2 min-h-[44px] ${
+                registerSubTab === 'single'
+                  ? 'bg-sophia-blue text-white shadow-md'
+                  : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Registro Individual de Fármaco</span>
+            </button>
+          </div>
 
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
-              El registro de nuevos productos médicos ingresará la metadata del fármaco al motor de similitud por contenido. Esto solventará el escenario de <strong>Cold Start</strong> para productos sin transacciones previas en clínicas.
-            </p>
+          {/* Sub-vista 1: Carga Masiva con SheetJS */}
+          {registerSubTab === 'bulk' && (
+            <BulkProductUpload onSuccess={fetchRegisteredProducts} />
+          )}
 
-            {regSuccess && (
-              <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start space-x-3 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <span className="text-sm font-semibold">{regSuccess}</span>
+          {/* Sub-vista 2: Formulario Individual */}
+          {registerSubTab === 'single' && (
+            <div className="bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl transition-all">
+              <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <PlusCircle className="w-6 h-6 text-sophia-blue dark:text-sophia-blue-400" />
+                <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
+                  Registrar Nuevo Lanzamiento
+                </h3>
               </div>
-            )}
 
-            {regError && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start space-x-3 text-red-600 dark:text-red-400">
-                <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <span className="text-sm font-semibold">{regError}</span>
-              </div>
-            )}
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-8 leading-relaxed">
+                El registro de nuevos productos médicos ingresará la metadata del fármaco al motor de similitud por contenido. Esto solventará el escenario de <strong>Cold Start</strong> para productos sin transacciones previas en clínicas.
+              </p>
 
-            <form onSubmit={handleRegisterProduct} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {regSuccess && (
+                <div className="mb-6 p-4 bg-sky-500/10 border border-sky-500/20 rounded-xl flex items-start space-x-3 text-sky-700 dark:text-sky-300">
+                  <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm font-semibold">{regSuccess}</span>
+                </div>
+              )}
+
+              {regError && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start space-x-3 text-red-600 dark:text-red-400">
+                  <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm font-semibold">{regError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleRegisterProduct} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
+                      Nombre del Producto *
+                    </label>
+                    <input
+                      type="text"
+                      value={newProduct.nombre}
+                      onChange={(e) => setNewProduct(prev => ({ ...prev, nombre: e.target.value }))}
+                      placeholder="Ej. LAGRICEL PF"
+                      className="w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-sophia-blue transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
+                      Sub-Familia Terapéutica
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={newProduct.sub_familia}
+                        onChange={(e) => setNewProduct(prev => ({ ...prev, sub_familia: e.target.value }))}
+                        className="appearance-none w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-sophia-blue transition-all cursor-pointer"
+                      >
+                        <option value="OFTALMOLOGÍA">OFTALMOLOGÍA</option>
+                        <option value="ANTIBIÓTICOS">ANTIBIÓTICOS</option>
+                        <option value="ANALGÉSICOS">ANALGÉSICOS</option>
+                        <option value="ANTINFLAMATORIOS">ANTINFLAMATORIOS</option>
+                        <option value="LUBRICANTES">LUBRICANTES</option>
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
-                    Nombre del Producto *
+                    Formato de Presentación
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={newProduct.formato}
+                      onChange={(e) => setNewProduct(prev => ({ ...prev, formato: e.target.value }))}
+                      className="appearance-none w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-sophia-blue transition-all cursor-pointer"
+                    >
+                      <option value="SUSPENSIÓN OFTÁLMICA">SUSPENSIÓN OFTÁLMICA</option>
+                      <option value="SOLUCIÓN OFTÁLMICA">SOLUCIÓN OFTÁLMICA</option>
+                      <option value="UNGUENTO OFTÁLMICO">UNGUENTO OFTÁLMICO</option>
+                      <option value="TABLETAS">TABLETAS</option>
+                      <option value="AMPOLLAS">AMPOLLAS</option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
+                    Composición Química *
                   </label>
                   <input
                     type="text"
-                    value={newProduct.nombre}
-                    onChange={(e) => setNewProduct(prev => ({ ...prev, nombre: e.target.value }))}
-                    placeholder="Ej. LAGRICEL PF"
-                    className="w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 transition-all"
+                    value={newProduct.composicion}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, composicion: e.target.value }))}
+                    placeholder="Ej. Hialuronato de sodio 0.4%"
+                    className="w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-sophia-blue transition-all"
                   />
                 </div>
 
                 <div>
                   <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
-                    Sub-Familia Terapéutica
+                    Indicación Clínica Principal *
                   </label>
-                  <div className="relative">
-                    <select
-                      value={newProduct.sub_familia}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, sub_familia: e.target.value }))}
-                      className="appearance-none w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                    >
-                      <option value="OFTALMOLOGÍA">OFTALMOLOGÍA</option>
-                      <option value="ANTIBIÓTICOS">ANTIBIÓTICOS</option>
-                      <option value="ANALGÉSICOS">ANALGÉSICOS</option>
-                      <option value="ANTINFLAMATORIOS">ANTINFLAMATORIOS</option>
-                      <option value="LUBRICANTES">LUBRICANTES</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
+                  <textarea
+                    value={newProduct.indicacion}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, indicacion: e.target.value }))}
+                    rows={4}
+                    placeholder="Ej. Alivio temporal de la irritación debido a la sequedad del ojo."
+                    className="w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-sophia-blue transition-all resize-none"
+                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
-                  Formato de Presentación
-                </label>
-                <div className="relative">
-                  <select
-                    value={newProduct.formato}
-                    onChange={(e) => setNewProduct(prev => ({ ...prev, formato: e.target.value }))}
-                    className="appearance-none w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                  >
-                    <option value="SUSPENSIÓN OFTÁLMICA">SUSPENSIÓN OFTÁLMICA</option>
-                    <option value="SOLUCIÓN OFTÁLMICA">SOLUCIÓN OFTÁLMICA</option>
-                    <option value="UNGUENTO OFTÁLMICO">UNGUENTO OFTÁLMICO</option>
-                    <option value="TABLETAS">TABLETAS</option>
-                    <option value="AMPOLLAS">AMPOLLAS</option>
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-500">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
+                <button
+                  type="submit"
+                  disabled={regLoading}
+                  className="w-full py-4 bg-sophia-blue hover:bg-sophia-blue-600 text-white text-sm font-black tracking-widest uppercase rounded-xl transition-all shadow-md shadow-sophia-blue/20 disabled:opacity-50 flex items-center justify-center space-x-2 min-h-[44px]"
+                >
+                  {regLoading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      <span>Guardando Producto...</span>
+                    </>
+                  ) : (
+                    <span>Registrar Fármaco</span>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
 
-              <div>
-                <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
-                  Composición Química *
-                </label>
-                <input
-                  type="text"
-                  value={newProduct.composicion}
-                  onChange={(e) => setNewProduct(prev => ({ ...prev, composicion: e.target.value }))}
-                  placeholder="Ej. Hialuronato de sodio 0.4%"
-                  className="w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
-                  Indicación Clínica Principal *
-                </label>
-                <textarea
-                  value={newProduct.indicacion}
-                  onChange={(e) => setNewProduct(prev => ({ ...prev, indicacion: e.target.value }))}
-                  rows={4}
-                  placeholder="Ej. Alivio temporal de la irritación debido a la sequedad del ojo."
-                  className="w-full px-4 py-3.5 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 transition-all resize-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={regLoading}
-                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-sm font-black tracking-widest uppercase rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-50 flex items-center justify-center space-x-2"
-              >
-                {regLoading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-neutral-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span>Guardando Producto...</span>
-                  </>
-                ) : (
-                  <span>Registrar Fármaco</span>
-                )}
-              </button>
-            </form>
-
-            {/* LISTA DE NUEVOS LANZAMIENTOS REGISTRADOS */}
-            <div className="mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-800">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                  Lanzamientos Registrados
-                </h4>
-              </div>
-
-              {loadingProducts ? (
-                <div className="flex justify-center items-center py-12">
-                  <svg className="animate-spin h-8 w-8 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                </div>
-              ) : registeredProducts.length === 0 ? (
-                <div className="text-center p-8 bg-neutral-50 dark:bg-neutral-900/40 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium text-sm">
-                  No hay nuevos lanzamientos registrados en el sistema aun.
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-xl bg-white dark:bg-neutral-950/40">
-                  <table className="w-full text-left border-collapse table-auto">
-                    <thead>
-                      <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
-                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Nombre</th>
-                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/5">Sub-Familia</th>
-                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/6">Formato</th>
-                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Composicion</th>
-                        <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Indicacion</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/60 bg-white dark:bg-neutral-950/40">
-                      {registeredProducts.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors text-xs text-neutral-700 dark:text-neutral-300 font-medium">
-                          <td className="p-3 font-bold text-neutral-950 dark:text-white uppercase">{p.nombre}</td>
-                          <td className="p-3">{p.sub_familia}</td>
-                          <td className="p-3 font-semibold text-[10px] uppercase tracking-wider">{p.formato}</td>
-                          <td className="p-3 break-words">{p.composicion}</td>
-                          <td className="p-3 break-words leading-relaxed">{p.indicacion}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          {/* LISTA DE NUEVOS LANZAMIENTOS REGISTRADOS */}
+          <div className="bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl transition-all">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-2.5 h-6 bg-sophia-blue rounded-sm"></div>
+              <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
+                Lanzamientos Registrados en Catálogo
+              </h4>
             </div>
 
-            {/* AUDITORÍA DE AFINIDAD (TF-IDF MATRIZ DE PRODUCTOS NUEVOS) */}
+            {loadingProducts ? (
+              <div className="flex justify-center items-center py-12">
+                <svg className="animate-spin h-8 w-8 text-sophia-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              </div>
+            ) : registeredProducts.length === 0 ? (
+              <div className="text-center p-8 bg-neutral-50 dark:bg-neutral-900/40 rounded-2xl border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium text-sm">
+                No hay nuevos lanzamientos registrados en el sistema aún.
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden shadow-xl bg-white dark:bg-neutral-950/40">
+                <table className="w-full text-left border-collapse table-auto">
+                  <thead>
+                    <tr className="bg-neutral-50 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-800">
+                      <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Nombre</th>
+                      <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/5">Sub-Familia</th>
+                      <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/6">Formato</th>
+                      <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Composición</th>
+                      <th className="p-3 text-[10px] font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase">Indicación</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/60 bg-white dark:bg-neutral-950/40">
+                    {registeredProducts.map((p, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors text-xs text-neutral-700 dark:text-neutral-300 font-medium">
+                        <td className="p-3 font-bold text-neutral-950 dark:text-white uppercase">{p.nombre}</td>
+                        <td className="p-3">{p.sub_familia}</td>
+                        <td className="p-3 font-semibold text-[10px] uppercase tracking-wider">{p.formato}</td>
+                        <td className="p-3 break-words">{p.composicion}</td>
+                        <td className="p-3 break-words leading-relaxed">{p.indicacion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* AUDITORÍA DE AFINIDAD TF-IDF */}
             {registeredProducts.length > 0 && (
               <div className="mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-800 space-y-6">
                 <div className="flex items-center space-x-3">
-                  <div className="w-2 h-6 bg-emerald-500 rounded-sm shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                  <div className="w-2.5 h-6 bg-sophia-blue rounded-sm"></div>
                   <h4 className="text-lg font-black tracking-widest uppercase text-neutral-800 dark:text-neutral-200">
-                    Auditoría de Afinidad: Ver matriz de productos nuevos (TF-IDF)
+                    Auditoría de Afinidad: Matriz TF-IDF de Nuevos Lanzamientos
                   </h4>
                 </div>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                  ¿Cómo sabe la IA a quién recomendarle los lanzamientos si no tienen historial de ventas? Esta sección permite consultar en cualquier momento la matriz matemática (Procesamiento de Lenguaje Natural) que cruza la fórmula médica de los nuevos lanzamientos con el catálogo que el cliente ya consume.
+                  Permite consultar en cualquier momento la matriz matemática (Procesamiento de Lenguaje Natural) que cruza la fórmula médica de los nuevos lanzamientos con el catálogo que el cliente ya consume.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                   <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest sm:w-auto">
                     Selecciona un lanzamiento para auditar su similitud:
                   </label>
-                  <select
-                    value={selectedLanzamientoSim}
-                    onChange={(e) => setSelectedLanzamientoSim(e.target.value)}
-                    className="appearance-none flex-1 max-w-md px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                  >
-                    <option value="">-- Selecciona un Producto Registrado --</option>
-                    {registeredProducts.map((p) => (
-                      <option key={p.nombre} value={p.nombre} className="uppercase">
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative flex-1 max-w-md">
+                    <select
+                      value={selectedLanzamientoSim}
+                      onChange={(e) => setSelectedLanzamientoSim(e.target.value)}
+                      className="appearance-none w-full px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold focus:outline-none focus:border-sophia-blue transition-all cursor-pointer"
+                    >
+                      <option value="">-- Selecciona un Producto Registrado --</option>
+                      {registeredProducts.map((p) => (
+                        <option key={p.nombre} value={p.nombre} className="uppercase">
+                          {p.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 {loadingSim && (
                   <div className="flex justify-center items-center py-12">
-                    <svg className="animate-spin h-8 w-8 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg className="animate-spin h-8 w-8 text-sophia-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                   </div>
                 )}
 
@@ -1426,7 +1396,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                           <tr key={idx} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50 transition-colors text-xs text-neutral-700 dark:text-neutral-300 font-medium">
                             <td className="p-3 font-bold text-neutral-950 dark:text-white uppercase">{row["Producto existente"]}</td>
                             <td className="p-3">{row["Sub-familia"]}</td>
-                            <td className="p-3 text-center font-bold text-emerald-600 dark:text-emerald-400">{row["Similitud TF-IDF"]}</td>
+                            <td className="p-3 text-center font-bold text-sophia-blue dark:text-sophia-blue-400">{row["Similitud TF-IDF"]}</td>
                             <td className="p-3 break-words leading-relaxed">{row["¿Por qué?"]}</td>
                           </tr>
                         ))}
@@ -1451,7 +1421,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
         <div className="max-w-4xl mx-auto animate-fadeIn space-y-8">
           <div className="bg-white dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800/80 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl transition-all">
             <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
-              <Cpu className="w-6 h-6 text-emerald-500" />
+              <Cpu className="w-6 h-6 text-sophia-blue dark:text-sophia-blue-400" />
               <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-widest">
                 Ejecutar Pipeline de Deep Learning
               </h3>
@@ -1478,16 +1448,16 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
               <button
                 onClick={handleLaunchTraining}
                 disabled={trainingActive}
-                className="w-full md:w-auto px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-sm font-black tracking-widest uppercase rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full md:w-auto px-8 py-4 bg-sophia-blue hover:bg-sophia-blue-600 text-white text-sm font-black tracking-widest uppercase rounded-xl transition-all shadow-md shadow-sophia-blue/20 flex items-center justify-center gap-2 min-h-[44px]"
               >
                 {trainingActive ? (
                   <>
-                    <svg className="animate-spin h-5 w-5 text-neutral-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     <span>Entrenando...</span>
                   </>
                 ) : (
                   <>
-                    <Cpu className="w-5 h-5 text-neutral-950" />
+                    <Cpu className="w-5 h-5 text-white" />
                     <span>Iniciar Reentrenamiento</span>
                   </>
                 )}
@@ -1501,7 +1471,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                 <span className="text-xs font-black uppercase tracking-widest">Logs de Entrenamiento en Tiempo Real</span>
               </div>
 
-              <div className="bg-neutral-950 rounded-2xl border border-neutral-800 p-6 h-[400px] overflow-y-auto font-mono text-xs text-emerald-400 space-y-2 scrollbar-thin shadow-inner">
+              <div className="bg-neutral-950 rounded-2xl border border-neutral-800 p-6 h-[400px] overflow-y-auto font-mono text-xs text-sky-400 space-y-2 scrollbar-thin shadow-inner">
                 {trainingLogs.length === 0 ? (
                   <div className="text-neutral-600 italic">No hay logs de entrenamiento iniciados en este momento.</div>
                 ) : (
@@ -1518,6 +1488,15 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
           </div>
         </div>
       )}
+
+      {/* MODAL PARA REGISTRO DE NUEVO CLIENTE */}
+      <NewCustomerForm
+        isOpen={isNewCustomerModalOpen}
+        onClose={() => setIsNewCustomerModalOpen(false)}
+        onCustomerCreated={handleCustomerCreated}
+        zonasDisponibles={zonas.length > 0 ? zonas : ['NORTE', 'SUR', 'CENTRO', 'LIMA CENTRO', 'LIMA ESTE', 'LIMA NORTE', 'LIMA SUR', 'ORIENTE']}
+      />
     </div>
   )
 }
+

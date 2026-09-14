@@ -7,6 +7,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+
 from ml_engine.apriori_engine import generar_reglas_apriori
 from ml_engine.kmeans_engine import segmentar_clientes_kmeans
 from ml_engine.polynomial_engine import calcular_limites_polinomiales
@@ -29,9 +34,14 @@ def cargar_compras():
         except Exception:
             pass
 
-    csv_path = DATA_DIR / "compras_ctx.csv"
-    if csv_path.exists():
-        return pd.read_csv(csv_path)
+    for candidate in [
+        DATA_DIR / "intermediate" / "compras_ctx.csv",
+        DATA_DIR / "compras_ctx.csv",
+        ROOT_DIR / "src_py" / "data" / "intermediate" / "compras_ctx.csv",
+        ROOT_DIR / "src_py" / "data" / "compras_ctx.csv"
+    ]:
+        if candidate.exists():
+            return pd.read_csv(candidate)
     return None
 
 def predecir(cliente_id: int):

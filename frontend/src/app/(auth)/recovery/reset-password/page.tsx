@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { RiLockPasswordLine, RiLoader4Line, RiCheckLine, RiArrowRightLine } from "react-icons/ri";
+import { Lock, Loader2, Check, ArrowRight } from "lucide-react";
 import { supabase } from "../../../../lib/supabase";
 
 export default function ResetPassword() {
@@ -93,7 +93,7 @@ export default function ResetPassword() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Nueva Contraseña</label>
                   <div className="relative">
-                    <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="password"
                       value={newPassword}
@@ -109,7 +109,7 @@ export default function ResetPassword() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">Confirmar Contraseña</label>
                   <div className="relative">
-                    <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
                     <input
                       type="password"
                       value={confirmPassword}
@@ -125,17 +125,17 @@ export default function ResetPassword() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-neutral-200 transition-colors text-sm shadow-lg shadow-white/5 flex justify-center items-center gap-2 disabled:opacity-75"
+                  className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors text-sm shadow-lg shadow-sophia-blue/20 flex justify-center items-center gap-2 disabled:opacity-75"
                 >
-                  {loading && <RiLoader4Line className="w-5 h-5 animate-spin" />}
+                  {loading && <Loader2 className="w-5 h-5 animate-spin" />}
                   {loading ? "Actualizando..." : "Restablecer Contraseña"}
                 </button>
               </form>
             </>
           ) : (
             <div className="text-center py-6">
-              <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <RiCheckLine className="w-6 h-6 text-emerald-400" />
+              <div className="w-12 h-12 bg-sophia-blue/10 border border-sophia-blue/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Check className="w-6 h-6 text-sophia-blue" />
               </div>
               <h1 className="text-2xl font-black text-white mb-2 tracking-tight">¡Contraseña Actualizada!</h1>
               <p className="text-neutral-400 text-sm mb-8 leading-relaxed">
@@ -143,10 +143,10 @@ export default function ResetPassword() {
               </p>
               <Link
                 href="/app"
-                className="w-full py-3 bg-emerald-500 text-neutral-950 font-bold rounded-lg hover:bg-emerald-400 transition-colors text-sm shadow-lg shadow-emerald-500/10 flex justify-center items-center gap-2"
+                className="w-full py-3 bg-sophia-blue text-white font-bold rounded-lg hover:bg-sophia-dark transition-colors text-sm shadow-lg shadow-sophia-blue/20 flex justify-center items-center gap-2"
               >
                 <span>Acceder al Dashboard ahora</span>
-                <RiArrowRightLine className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           )}

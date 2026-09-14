@@ -1,9 +1,10 @@
 import './globals.css'
 import type { Metadata } from 'next'
+import { ThemeProvider } from '../components/ThemeProvider'
 
 export const metadata: Metadata = {
-  title: 'Sophia XAI Intelligence',
-  description: 'Sistema Predictivo Comercial de Laboratorios Sophia',
+  title: 'Sophia XAI Intelligence | Laboratorios Sophia',
+  description: 'Sistema Predictivo Comercial y XAI de Laboratorios Sophia',
   icons: {
     icon: '/logo-sophia-color.png',
   }
@@ -21,10 +22,12 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (localStorage.theme === 'light') {
+                var stored = localStorage.getItem('sophia_theme');
+                if (stored === 'light') {
                   document.documentElement.classList.remove('dark');
                   document.documentElement.classList.add('light');
                 } else {
+                  document.documentElement.classList.remove('light');
                   document.documentElement.classList.add('dark');
                 }
               } catch (_) {}
@@ -32,7 +35,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased min-h-screen">
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

@@ -338,8 +338,8 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
                   onChange={(e) => setSelectedCliente(Number(e.target.value))}
                   className="appearance-none w-full px-4 py-4 rounded-xl bg-neutral-950 border border-neutral-800 text-white font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-all cursor-pointer"
                 >
-                  {clientesDeZona.map((c) => (
-                    <option key={c.id} value={c.id}>
+                  {clientesDeZona.map((c, i) => (
+                    <option key={`client-opt-${c.id}-${i}`} value={c.id}>
                       ID: {c.id} - {c.name.slice(0, 30)}
                     </option>
                   ))}
