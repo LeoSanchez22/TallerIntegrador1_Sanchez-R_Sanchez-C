@@ -202,7 +202,7 @@ jobs:
             npm install
             
             echo "📦 Compilando Frontend (Next.js)..."
-            npm run build
+            NEXT_PUBLIC_API_URL="" npm run build
             
             if pm2 describe "$PM2_FRONTEND" > /dev/null 2>&1; then
                 echo "🔄 Recargando $PM2_FRONTEND..."
