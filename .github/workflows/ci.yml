@@ -153,15 +153,17 @@ jobs:
             git checkout "$BRANCH" || git checkout -B "$BRANCH" "origin/$BRANCH"
             git pull origin "$BRANCH"
             
-            # Replicar variables de entorno si no existen
-            if [ ! -f "$TARGET_DIR/.env" ] && [ -f "/var/www/g2-diegoleo/.env" ]; then
-                cp "/var/www/g2-diegoleo/.env" "$TARGET_DIR/.env"
+            # Replicar variables de entorno de forma exhaustiva
+            echo "📋 Sincronizando variables de entorno (.env)..."
+            cp -f /var/www/g2-diegoleo/.env* "$TARGET_DIR/" 2>/dev/null || true
+            cp -f /var/www/g2-diegoleo/backend/.env* "$TARGET_DIR/backend/" 2>/dev/null || true
+            cp -f /var/www/g2-diegoleo/frontend/.env* "$TARGET_DIR/frontend/" 2>/dev/null || true
+            if [ -f "/var/www/g2-diegoleo/.env" ]; then
+                cp -f "/var/www/g2-diegoleo/.env" "$TARGET_DIR/backend/.env" 2>/dev/null || true
+                cp -f "/var/www/g2-diegoleo/.env" "$TARGET_DIR/frontend/.env.local" 2>/dev/null || true
             fi
-            if [ ! -f "$TARGET_DIR/backend/.env" ] && [ -f "/var/www/g2-diegoleo/backend/.env" ]; then
-                cp "/var/www/g2-diegoleo/backend/.env" "$TARGET_DIR/backend/.env"
-            fi
-            if [ ! -f "$TARGET_DIR/frontend/.env.local" ] && [ -f "/var/www/g2-diegoleo/frontend/.env.local" ]; then
-                cp "/var/www/g2-diegoleo/frontend/.env.local" "$TARGET_DIR/frontend/.env.local"
+            if [ -f "/var/www/g2-diegoleo/backend/.env" ]; then
+                cp -f "/var/www/g2-diegoleo/backend/.env" "$TARGET_DIR/.env" 2>/dev/null || true
             fi
             
             # --- 1. ACTUALIZAR Y REINICIAR BACKEND ---
