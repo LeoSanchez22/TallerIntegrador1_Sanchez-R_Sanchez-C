@@ -1,17 +1,10 @@
 /**
  * Configuración de la URL base para el consumo de la API.
- * - En Local (localhost:3000): Se conecta directamente al puerto del Backend Hono (5005).
- * - En Producción / VPS (tallerintegrador1.diegoproyectos.me / taller2.diegoproyectos.me):
- *   Usa rutas relativas ('') para que Nginx enrute transparentemente al puerto 5007 o 5017.
+ * - Usamos rutas relativas ('') en el cliente para que Next.js (mediante rewrites en next.config.mjs)
+ *   o Nginx enruten transparentemente hacia el backend correspondiente
+ *   (5005 en local, 5017 en Taller 2, 5007 en Taller 1).
+ *   Esto elimina problemas de CORS, 404s y puertos bloqueados por firewall.
  */
-export const API_URL = (() => {
-  if (typeof window !== 'undefined') {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocal) {
-      return 'http://127.0.0.1:5005';
-    }
-    return '';
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5005';
-})();
+export const API_URL = '';
+
 
