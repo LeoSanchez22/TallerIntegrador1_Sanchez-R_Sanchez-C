@@ -134,9 +134,9 @@ jobs:
                 APP_LABEL="TALLER 2 (taller2.diegoproyectos.me)"
             fi
             
-            echo "📦 Entorno: $APP_LABEL"
-            echo "📁 Directorio Destino: $TARGET_DIR"
-            echo "🔌 Puertos: Backend=$PORT_BACKEND | Frontend=$PORT_FRONTEND | FastAPI=$PORT_FASTAPI"
+            echo "Entorno: $APP_LABEL"
+            echo "Directorio Destino: $TARGET_DIR"
+            echo "Puertos: Backend=$PORT_BACKEND | Frontend=$PORT_FRONTEND | FastAPI=$PORT_FASTAPI"
             
             # Si el directorio de Taller 2 no existe, clonarlo dentro del espacio de trabajo
             if [ ! -d "$TARGET_DIR/.git" ]; then
@@ -154,7 +154,7 @@ jobs:
             git pull origin "$BRANCH"
             
             # Replicar variables de entorno de forma exhaustiva
-            echo "📋 Sincronizando variables de entorno (.env)..."
+            echo "Sincronizando variables de entorno (.env)..."
             cp -f /var/www/g2-diegoleo/.env* "$TARGET_DIR/" 2>/dev/null || true
             cp -f /var/www/g2-diegoleo/backend/.env* "$TARGET_DIR/backend/" 2>/dev/null || true
             cp -f /var/www/g2-diegoleo/frontend/.env* "$TARGET_DIR/frontend/" 2>/dev/null || true
@@ -167,15 +167,15 @@ jobs:
             fi
             
             # --- 1. ACTUALIZAR Y REINICIAR BACKEND ---
-            echo "⚙️ Configurando Backend..."
+            echo "Configurando Backend..."
             cd "$TARGET_DIR/backend"
             npm install --omit=dev
             
             if pm2 describe "$PM2_BACKEND" > /dev/null 2>&1; then
-                echo "🔄 Recargando $PM2_BACKEND..."
+                echo "Recargando $PM2_BACKEND..."
                 PORT=$PORT_BACKEND FASTAPI_URL="http://127.0.0.1:$PORT_FASTAPI" pm2 reload "$PM2_BACKEND" --update-env || pm2 restart "$PM2_BACKEND" --update-env
             else
-                echo "✨ Iniciando $PM2_BACKEND en PM2..."
+                echo "Iniciando $PM2_BACKEND en PM2..."
                 PORT=$PORT_BACKEND FASTAPI_URL="http://127.0.0.1:$PORT_FASTAPI" pm2 start src/index.js --name "$PM2_BACKEND" --update-env
             fi
             
@@ -189,26 +189,26 @@ jobs:
             fi
             
             if pm2 describe "$PM2_FASTAPI" > /dev/null 2>&1; then
-                echo "🔄 Recargando $PM2_FASTAPI..."
+                echo "Recargando $PM2_FASTAPI..."
                 pm2 reload "$PM2_FASTAPI" --update-env || pm2 restart "$PM2_FASTAPI" --update-env
             else
-                echo "✨ Iniciando $PM2_FASTAPI en PM2..."
+                echo "Iniciando $PM2_FASTAPI en PM2..."
                 pm2 start "$PYTHON_BIN -m uvicorn src_py.servidor_front:app --host 127.0.0.1 --port $PORT_FASTAPI" --name "$PM2_FASTAPI"
             fi
             
             # --- 2. ACTUALIZAR, COMPILAR Y REINICIAR FRONTEND ---
-            echo "⚙️ Configurando Frontend..."
+            echo "Configurando Frontend..."
             cd "$TARGET_DIR/frontend"
             npm install
             
-            echo "📦 Compilando Frontend (Next.js)..."
+            echo "Compilando Frontend (Next.js)..."
             NEXT_PUBLIC_API_URL="" npm run build
             
             if pm2 describe "$PM2_FRONTEND" > /dev/null 2>&1; then
-                echo "🔄 Recargando $PM2_FRONTEND..."
+                echo "Recargando $PM2_FRONTEND..."
                 PORT=$PORT_FRONTEND pm2 reload "$PM2_FRONTEND" --update-env || PORT=$PORT_FRONTEND pm2 restart "$PM2_FRONTEND" --update-env
             else
-                echo "✨ Iniciando $PM2_FRONTEND en PM2..."
+                echo "Iniciando $PM2_FRONTEND en PM2..."
                 PORT=$PORT_FRONTEND pm2 start "npm run start -- -p $PORT_FRONTEND" --name "$PM2_FRONTEND"
             fi
             
@@ -220,7 +220,7 @@ jobs:
             nginx-reload-g2 || sudo systemctl reload nginx 2>/dev/null || sudo service nginx reload 2>/dev/null || true
             
             echo "========================================================="
-            echo "✅ ¡Despliegue exitoso para $APP_LABEL ($BRANCH)!"
+            echo "¡Despliegue exitoso para $APP_LABEL ($BRANCH)!"
             echo "========================================================="
 
-
+

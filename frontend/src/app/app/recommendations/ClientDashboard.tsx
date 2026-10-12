@@ -632,7 +632,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
             <span>Registrar Lanzamiento</span>
           </button>
         )}
-        {isAdmin && (
+        {/* {isAdmin && (
           <button
             onClick={() => setActiveTab('dlops')}
             className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
@@ -644,7 +644,7 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
             <Cpu className="w-4 h-4 flex-shrink-0" />
             <span>Mantenimiento & DLOps</span>
           </button>
-        )}
+        )} */}
       </div>
 
       {/* CONTENIDO TAB 1: INFERENCIAS */}
