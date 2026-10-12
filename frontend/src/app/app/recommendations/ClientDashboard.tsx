@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { fetchWithAuth } from '../../../lib/apiClient'
+import { useRole } from '../../../lib/useRole'
 import {
   ListChecks,
   Sparkles,
@@ -77,6 +78,9 @@ function renderBoldText(text: string) {
 }
 
 export default function ClientDashboard({ initialData }: { initialData: any[] }) {
+  // RF-11 · El registro de clientes, lanzamientos y el mantenimiento del modelo
+  // son exclusivos del Administrador; el backend los rechaza con HTTP 403.
+  const { isAdmin } = useRole()
   const [activeTab, setActiveTab] = useState<'inference' | 'new-customer' | 'register' | 'dlops'>('inference')
   
   // Custom clients registered during this session
@@ -602,39 +606,45 @@ export default function ClientDashboard({ initialData }: { initialData: any[] })
           <Sparkles className="w-4 h-4 flex-shrink-0" />
           <span>Oportunidades & Recomendaciones</span>
         </button>
-        <button
-          onClick={() => setActiveTab('new-customer')}
-          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
-            activeTab === 'new-customer'
-              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
-              : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-          }`}
-        >
-          <UserPlus className="w-4 h-4 flex-shrink-0" />
-          <span>Registrar Nuevo Cliente</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('register')}
-          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
-            activeTab === 'register'
-              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
-              : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-          }`}
-        >
-          <PlusCircle className="w-4 h-4 flex-shrink-0" />
-          <span>Registrar Lanzamiento</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('dlops')}
-          className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
-            activeTab === 'dlops'
-              ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
-              : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-          }`}
-        >
-          <Cpu className="w-4 h-4 flex-shrink-0" />
-          <span>Mantenimiento & DLOps</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('new-customer')}
+            className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
+              activeTab === 'new-customer'
+                ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
+                : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+            }`}
+          >
+            <UserPlus className="w-4 h-4 flex-shrink-0" />
+            <span>Registrar Nuevo Cliente</span>
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('register')}
+            className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
+              activeTab === 'register'
+                ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
+                : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+            }`}
+          >
+            <PlusCircle className="w-4 h-4 flex-shrink-0" />
+            <span>Registrar Lanzamiento</span>
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('dlops')}
+            className={`flex items-center gap-2 py-3 px-3.5 sm:py-4 sm:px-6 text-xs sm:text-sm font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap min-h-[44px] ${
+              activeTab === 'dlops'
+                ? 'border-sophia-blue text-sophia-blue dark:text-sophia-blue-400 dark:border-sophia-blue-400'
+                : 'border-transparent text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+            }`}
+          >
+            <Cpu className="w-4 h-4 flex-shrink-0" />
+            <span>Mantenimiento & DLOps</span>
+          </button>
+        )}
       </div>
 
       {/* CONTENIDO TAB 1: INFERENCIAS */}

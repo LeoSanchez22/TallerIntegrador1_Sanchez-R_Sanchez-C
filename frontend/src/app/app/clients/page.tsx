@@ -26,6 +26,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { fetchWithAuth } from '../../../lib/apiClient'
+import { useRole } from '../../../lib/useRole'
 import NewCustomerForm from '../../../components/NewCustomerForm'
 
 interface ClientSummary {
@@ -50,6 +51,9 @@ interface ClientDetailData {
 
 export default function ClientsManagementPage() {
   const router = useRouter()
+  // RF-11 · El alta/edición/baja de clientes queda reservada al Administrador.
+  // El backend también rechaza estas escrituras con HTTP 403 para representantes.
+  const { isAdmin } = useRole()
   const [clients, setClients] = useState<ClientSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -251,14 +255,16 @@ export default function ClientsManagementPage() {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-sophia-blue' : ''}`} />
           </button>
 
-          <button
-            type="button"
-            onClick={() => setIsNewModalOpen(true)}
-            className="px-5 py-3 bg-sophia-blue hover:bg-sophia-blue-600 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-sophia-blue/20 hover:shadow-sophia-blue/40 flex items-center gap-2 min-h-[44px]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Nuevo Cliente</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsNewModalOpen(true)}
+              className="px-5 py-3 bg-sophia-blue hover:bg-sophia-blue-600 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-sophia-blue/20 hover:shadow-sophia-blue/40 flex items-center gap-2 min-h-[44px]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Nuevo Cliente</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -464,25 +470,29 @@ export default function ClientsManagementPage() {
                             <Sparkles className="w-4 h-4" />
                           </button>
 
-                          {/* Editar */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(client)}
-                            className="p-2 text-neutral-500 hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all"
-                            title="Editar Cliente"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {/* Editar (RF-11 · solo Administrador) */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(client)}
+                              className="p-2 text-neutral-500 hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all"
+                              title="Editar Cliente"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
 
-                          {/* Eliminar */}
-                          <button
-                            type="button"
-                            onClick={() => setDeletingId(client.cliente_id)}
-                            className="p-2 text-neutral-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                            title="Eliminar Cliente"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Eliminar (RF-11 · solo Administrador) */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingId(client.cliente_id)}
+                              className="p-2 text-neutral-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                              title="Eliminar Cliente"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

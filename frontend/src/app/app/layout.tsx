@@ -10,11 +10,16 @@ import {
   Users,
   LineChart,
   Building2,
+  ShieldCheck,
+  Timer,
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { fetchWithAuth } from "../../lib/apiClient";
+import { touchSessionMarker } from "../../lib/sessionMarkers";
+import { useSessionTimeout } from "../../hooks/useSessionTimeout";
 import Navbar from "../../components/Navbar";
+import ConsentGate from "../../components/ConsentGate";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,12 +29,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  // RF-17 · Cierre de sesión automático por inactividad (aviso + invalidación).
+  const { secondsLeft, totalMinutes, warningMinutes, extendSession } = useSessionTimeout();
+
   const navItems = [
     { path: "/app", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/app/clients", icon: Building2, label: "Clientes" },
     { path: "/app/recommendations", icon: Sparkles, label: "Recomendaciones" },
     { path: "/app/forecasting", icon: LineChart, label: "Pronóstico" },
     { path: "/app/users", icon: Users, label: "Gestionar Usuarios", adminOnly: true },
+    { path: "/app/audit", icon: ShieldCheck, label: "Auditoría", adminOnly: true },
     { path: "/app/profile", icon: User, label: "Mi Perfil" },
   ];
 
@@ -86,6 +95,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               }
             }
             setUser(currentUser);
+            // RNF-04 / RF-17 · Renueva el marcador de sesión que vigila el middleware.
+            touchSessionMarker();
             setCheckingAuth(false);
           }
         }
@@ -103,6 +114,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } else if (session) {
         if (mounted) {
           setUser(session.user);
+          touchSessionMarker();
           setCheckingAuth(false);
         }
       }
@@ -241,6 +253,49 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+
+      {/* RF-17 · Aviso previo al cierre de sesión por inactividad */}
+      {secondsLeft !== null && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="idle-timeout-title"
+            className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-2xl p-8 text-center animate-scaleIn"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto mb-5">
+              <Timer className="w-7 h-7" />
+            </div>
+            <h2 id="idle-timeout-title" className="text-xl font-black text-neutral-900 dark:text-white uppercase mb-2">
+              Sesión por expirar
+            </h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed mb-6">
+              Tu sesión se cerrará automáticamente en{" "}
+              <strong className="text-amber-500 font-black">{secondsLeft}s</strong> por {totalMinutes} minutos de
+              inactividad (RF-17). Deberás volver a autenticarte.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/login?reason=idle_timeout")}
+                className="flex-1 py-3.5 px-4 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-bold rounded-xl text-xs uppercase tracking-wider transition-all min-h-[44px]"
+              >
+                Cerrar sesión ahora
+              </button>
+              <button
+                type="button"
+                onClick={extendSession}
+                className="flex-1 py-3.5 px-4 bg-sophia-blue hover:bg-sophia-dark text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(17,63,156,0.35)] min-h-[44px]"
+              >
+                Continuar con sesión ({warningMinutes} min)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ley N° 29733 · Consentimiento informado y aviso de privacidad */}
+      <ConsentGate />
     </div>
   );
 }

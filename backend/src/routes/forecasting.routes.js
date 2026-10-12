@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { precargarDatos, getCachedData, getIsReady } from '../config/db.js'
+import { filterRowsByScope, resolveZoneScope } from '../security/zoneScope.js'
 
 const forecastingRouter = new Hono()
 
@@ -11,7 +12,8 @@ forecastingRouter.get('/demanda', async (c) => {
     if (!getIsReady() || getCachedData().length === 0) {
       await precargarDatos()
     }
-    const currentData = getCachedData()
+    // RNF-12: el pronóstico solo considera las transacciones de la zona asignada.
+    const currentData = filterRowsByScope(c, getCachedData())
 
     const matches = currentData.filter(r => {
       const p = (r.producto || r.descripcion || '').toUpperCase()

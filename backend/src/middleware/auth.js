@@ -5,16 +5,33 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { AUDIT_EVENTS, getClientIp, getUserAgent, logSecurityEvent, throttleAudit } from '../security/audit.js'
+import { isAdminRole } from './rbac.js'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') }) // Raíz
 dotenv.config({ path: path.resolve(__dirname, '../../.env') }) // Backend
 
+/**
+ * Rutas que operan SIN JWT (lista blanca estricta, coincidencia exacta).
+ * • /api/security/auth-event → permite registrar intentos de login fallidos
+ *   cuando aún no existe una sesión válida (RF-16).
+ * • /model/upload → autenticado con el token estático de despliegue del propio handler.
+ */
+export const PUBLIC_PATHS = new Set([
+  '/api/security/auth-event',
+  '/model/upload'
+])
+
 // Caché y referencias en memoria para rendimiento óptimo
 let cryptoKeyBase64 = null
 let cryptoKeyPlain = null
 let cachedJwksKeys = null
+
+// Usuarios a los que ya se les dejó constancia de que no tienen zona asignada.
+const zoneWarningIssued = new Set()
 
 /**
  * Inicializa las claves criptográficas simétricas para validación HS256
@@ -76,9 +93,16 @@ async function getSupabaseJwksKeys(jwksUri) {
 }
 
 /**
- * Middleware Modular de Autenticación JWT para proteger la API
+ * Middleware Modular de Autenticación JWT para proteger la API (RNF-04).
+ * Además construye el contexto de autorización (`authz`) usado por RBAC (RF-11)
+ * y por el alcance por zona comercial (RNF-12).
  */
 export async function authMiddleware(c, next) {
+  // Rutas de la lista blanca: continúan sin token (validan en su propio handler).
+  if (PUBLIC_PATHS.has(c.req.path)) {
+    return await next()
+  }
+
   const secretStr = process.env.SUPABASE_JWT_SECRET
   if (!secretStr) {
     console.error("[JWT AUTH] CRÍTICO: SUPABASE_JWT_SECRET no definido en el archivo .env.");
@@ -160,14 +184,29 @@ export async function authMiddleware(c, next) {
 
   if (!payload) {
     console.error(`[JWT AUTH] Acceso denegado: ${errDetails}`)
+    // RF-16: todo token con firma inválida queda registrado con IP y sello temporal.
+    if (throttleAudit(`invalid-token:${getClientIp(c)}`, 20, 5 * 60 * 1000)) {
+      await logSecurityEvent({
+        eventType: AUDIT_EVENTS.INVALID_TOKEN,
+        severity: 'warning',
+        userEmail: payload?.email,
+        ip: getClientIp(c),
+        userAgent: getUserAgent(c),
+        method: c.req.method,
+        resource: c.req.path,
+        statusCode: 401,
+        details: { motivo: errDetails.slice(0, 180) }
+      })
+    }
     return c.json({ 
       error: "No autorizado", 
       details: `La firma del token no es válida o ha expirado. (${errDetails})` 
     }, 401);
   }
 
-  // 3. Verificar en la base de datos si el usuario ha sido eliminado lógicamente (deleted_at no nulo)
+  // 2. Verificar en la base de datos si el usuario ha sido eliminado lógicamente (deleted_at no nulo)
   let realTimeRole = null
+  let realTimeZone = null
   try {
     const { pool } = await import('../config/db.js')
     const userRes = await pool.query('SELECT deleted_at, raw_user_meta_data FROM auth.users WHERE id = $1', [payload.sub])
@@ -175,31 +214,63 @@ export async function authMiddleware(c, next) {
       const dbUser = userRes.rows[0]
       if (dbUser.deleted_at !== null) {
         console.warn(`[JWT AUTH] Intento de acceso de usuario bloqueado/eliminado lógicamente: ${payload.email}`)
+        await logSecurityEvent({
+          eventType: AUDIT_EVENTS.UNAUTHORIZED_ACCESS,
+          severity: 'critical',
+          userId: payload.sub,
+          userEmail: payload.email,
+          ip: getClientIp(c),
+          userAgent: getUserAgent(c),
+          method: c.req.method,
+          resource: c.req.path,
+          statusCode: 401,
+          details: { motivo: 'cuenta_inhabilitada_o_eliminada_logicamente' }
+        })
         return c.json({
           error: "No autorizado",
           details: "Tu cuenta ha sido inhabilitada o eliminada lógicamente."
         }, 401)
       }
-      realTimeRole = dbUser.raw_user_meta_data?.role
+      realTimeRole = dbUser.raw_user_meta_data?.role || null
+      realTimeZone = dbUser.raw_user_meta_data?.zona_comercial || dbUser.raw_user_meta_data?.zone || null
     }
   } catch (dbErr) {
     console.error(`[JWT AUTH] Error verificando soft delete en base de datos:`, dbErr.message)
   }
 
-  // 4. Protección de rutas de administración (solo rol 'admin')
-  const requestPath = c.req.path
-  if (requestPath.startsWith('/api/users') && requestPath !== '/api/users/me') {
-    const userRole = realTimeRole || payload.user_metadata?.role || payload.raw_user_meta_data?.role || payload.role
-    if (userRole !== 'admin') {
-      console.warn(`[JWT AUTH] Acceso denegado a ruta admin (${requestPath}) para el usuario: ${payload.email} con rol: ${userRole}`)
-      return c.json({
-        error: "Acceso denegado",
-        details: "Se requieren privilegios de Administrador para acceder a este recurso."
-      }, 403)
-    }
+  // 3. Contexto de autorización (RF-11 RBAC + RNF-12 alcance por zona)
+  const metaRole = payload.user_metadata?.role || payload.raw_user_meta_data?.role || payload.role
+  const role = isAdminRole(realTimeRole) ? 'admin' : (isAdminRole(metaRole) ? 'admin' : 'representante')
+  const zone = realTimeZone || payload.user_metadata?.zona_comercial || payload.raw_user_meta_data?.zona_comercial || null
+
+  c.set('authz', {
+    userId: payload.sub,
+    email: payload.email || null,
+    role,
+    zone: zone ? String(zone).trim().toUpperCase() : null
+  })
+
+  // RNF-12: un representante sin zona asignada no tiene restricción de alcance.
+  // Se deja constancia del evento (una sola vez por sesión) para su remediación.
+  if (role !== 'admin' && !zone && throttleAudit(`scope-unassigned:${payload.sub}`, 1, 60 * 60 * 1000)) {
+    await logSecurityEvent({
+      eventType: AUDIT_EVENTS.ZONE_SCOPE_UNASSIGNED,
+      severity: 'warning',
+      userId: payload.sub,
+      userEmail: payload.email,
+      userRole: role,
+      ip: getClientIp(c),
+      resource: c.req.path,
+      details: {
+        impacto: 'sin_zona_comercial_asignada',
+        accion: 'el representante consulta historiales de todas las zonas hasta que un administrador asigne zona_comercial'
+      }
+    })
   }
 
-  // Injectar el payload de usuario en el contexto del endpoint para consumo interno
+  // 4. Inyectar el payload de usuario en el contexto del endpoint para consumo interno
   c.set('jwtPayload', payload)
   return await next()
 }
+
+export { isAdminRole }

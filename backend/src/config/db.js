@@ -10,15 +10,25 @@ const __dirname = path.dirname(__filename)
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') }) // Raíz
 dotenv.config({ path: path.resolve(__dirname, '../../.env') }) // Backend
 
-// 1. Configuración del Pool de Conexión a PostgreSQL
-// En entornos locales permitimos rejectUnauthorized en true/false según configuración,
-// por defecto en desarrollo se mantiene flexible pero documentado para producción.
+// 1. Configuración del Pool de Conexión a PostgreSQL (RNF-11 · cifrado en tránsito)
+// La cadena de conexión de Supabase viaja siempre por TLS. La verificación del
+// certificado del servidor está ACTIVADA por defecto (rechazo de cadenas no
+// confiables / MITM). Solo puede desactivarse explícitamente para depuración
+// local mediante PG_SSL_REJECT_UNAUTHORIZED=false.
+const rejectUnauthorized = process.env.PG_SSL_REJECT_UNAUTHORIZED
+  ? process.env.PG_SSL_REJECT_UNAUTHORIZED === 'true'
+  : true
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Puede configurarse de forma estricta en producción
-  }
+  ssl: rejectUnauthorized
+    ? { rejectUnauthorized: true, ca: process.env.PG_SSL_CA || undefined }
+    : { rejectUnauthorized: false }
 })
+
+if (!rejectUnauthorized) {
+  console.warn('[DB TLS] ADVERTENCIA: PG_SSL_REJECT_UNAUTHORIZED=false desactiva la verificación del certificado TLS. Usa esto únicamente en desarrollo local.')
+}
 
 let cachedData = []
 let isReady = false
@@ -40,6 +50,9 @@ export async function precargarDatos() {
     }
   } catch (err) {
     console.error("[DB CACHE] Error conectando con Supabase PostgreSQL:", err.message)
+    if (/certificate|self-signed|ssl/i.test(err.message || '')) {
+      console.error("[DB CACHE] PISTA TLS: la verificación del certificado está activa (RNF-11). Si tu entorno local intercepta el TLS, define PG_SSL_REJECT_UNAUTHORIZED=false en el .env SOLO para desarrollo.")
+    }
     console.log("[DB CACHE] Alerta: Iniciando en modo offline. Cargando dataset de respaldo...")
   }
 

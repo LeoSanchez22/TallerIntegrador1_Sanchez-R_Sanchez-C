@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import { precargarDatos, getCachedData, getIsReady } from '../config/db.js'
+import { enforceZoneParam, filterRowsByScope } from '../security/zoneScope.js'
+import { callMlService } from '../utils/mlClient.js'
 
 const dashboardRouter = new Hono()
-const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000'
 
-// 1. Zonas Comerciales de Laboratorios Sophia
+// 1. Zonas Comerciales de Laboratorios Sophia (RNF-12: alcance por zona)
 dashboardRouter.get('/zonas', async (c) => {
   if (!getIsReady() || getCachedData().length === 0) {
     await precargarDatos()
@@ -24,9 +25,12 @@ dashboardRouter.get('/zonas', async (c) => {
       )
   )).sort()
 
-  const finalZonas = cleanZonas.length > 0 
-    ? cleanZonas 
-    : ['LIMA CENTRO', 'LIMA NORTE', 'LIMA SUR', 'LIMA ESTE', 'NORTE CHICO', 'CHICLAYO', 'TRUJILLO', 'AREQUIPA', 'CALLAO', 'CADENAS']
+  const fallbackZonas = ['LIMA CENTRO', 'LIMA NORTE', 'LIMA SUR', 'LIMA ESTE', 'NORTE CHICO', 'CHICLAYO', 'TRUJILLO', 'AREQUIPA', 'CALLAO', 'CADENAS']
+  const baseZonas = cleanZonas.length > 0 ? cleanZonas : fallbackZonas
+
+  // RNF-12: el representante solo recibe su propia zona comercial como filtro.
+  const scopeZone = enforceZoneParam(c, null)
+  const finalZonas = scopeZone ? baseZonas.filter(z => z === scopeZone) : baseZonas
 
   return c.json({ zonas: finalZonas })
 })
@@ -37,7 +41,7 @@ dashboardRouter.get('/dashboard', async (c) => {
     await precargarDatos()
   }
   const currentData = getCachedData()
-  const zonaFiltro = c.req.query('zona')
+  const zonaFiltro = enforceZoneParam(c, c.req.query('zona'))
 
   let dataFiltro = currentData
   if (zonaFiltro && zonaFiltro !== 'Todas') {
@@ -72,7 +76,7 @@ dashboardRouter.get('/statistics', async (c) => {
     await precargarDatos()
   }
   const currentData = getCachedData()
-  const zonaFiltro = c.req.query('zona')
+  const zonaFiltro = enforceZoneParam(c, c.req.query('zona'))
 
   let dataFiltro = currentData
   if (zonaFiltro && zonaFiltro !== 'Todas') {
@@ -85,8 +89,8 @@ dashboardRouter.get('/statistics', async (c) => {
   let dataQualityNum = 94.5
 
   try {
-    const response = await fetch(`${FASTAPI_URL}/api/model/statistics`)
-    if (response.ok) {
+    const response = await callMlService('/api/model/statistics', { authz: c.get('authz') })
+    if (response && response.ok) {
       const stats = await response.json()
       hitRateNum = Number(stats.hit_rate) || 0.842
       ndcgNum = Number(stats.ndcg) || 0.682
@@ -138,7 +142,8 @@ dashboardRouter.get('/pipeline', async (c) => {
   }
   const currentData = getCachedData()
 
-  const sample = currentData.slice(0, 100).map(r => ({
+  const scopedData = filterRowsByScope(c, currentData)
+  const sample = scopedData.slice(0, 100).map(r => ({
     id: r.id || Math.random().toString(36).substr(2, 9),
     cliente_id: r.cliente_id,
     producto: r.producto || r.Producto,
@@ -147,7 +152,7 @@ dashboardRouter.get('/pipeline', async (c) => {
   }))
 
   return c.json({
-    total_rows: currentData.length,
+    total_rows: scopedData.length,
     columns: Object.keys(currentData[0] || {}),
     sample_data: sample
   })

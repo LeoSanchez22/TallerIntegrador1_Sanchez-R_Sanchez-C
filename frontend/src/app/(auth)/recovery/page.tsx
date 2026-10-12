@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Mail, ArrowLeft, Check, Loader2 } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
+import { reportAuthEvent } from "../../../lib/auditEvents";
 
 export default function PasswordRecovery() {
   const [email, setEmail] = useState("");
@@ -24,6 +25,8 @@ export default function PasswordRecovery() {
       if (error) {
         setError(error.message);
       } else {
+        // RF-16 · Solicitud de recuperación de clave registrada en el log de auditoría.
+        void reportAuthEvent({ event: "password_recovery_requested", email });
         setSubmitted(true);
       }
     } catch (err: any) {

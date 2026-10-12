@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { fetchWithAuth } from '../../../lib/apiClient'
 import { supabase } from '../../../lib/supabase'
-import { UserPlus, UserCog, Trash2, RotateCw, Mail, Briefcase, Lock, User, Building2, ShieldAlert, CheckCheck } from 'lucide-react'
+import { UserPlus, UserCog, Trash2, RotateCw, Mail, Briefcase, Lock, User, Building2, ShieldAlert, CheckCheck, MapPin } from 'lucide-react'
 
 interface UserItem {
   id: string
@@ -13,6 +13,7 @@ interface UserItem {
   name: string
   role: string
   company: string
+  zone?: string
 }
 
 export default function UserManagement() {
@@ -30,7 +31,8 @@ export default function UserManagement() {
     password: '',
     name: '',
     role: 'executive',
-    company: 'Laboratorios Sophia S.A.'
+    company: 'Laboratorios Sophia S.A.',
+    zone: ''
   })
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -100,7 +102,8 @@ export default function UserManagement() {
       password: '',
       name: '',
       role: 'executive',
-      company: 'Laboratorios Sophia S.A.'
+      company: 'Laboratorios Sophia S.A.',
+      zone: ''
     })
     setFormError(null)
     setFormSuccess(null)
@@ -114,7 +117,8 @@ export default function UserManagement() {
       password: '', // Leave empty to keep unchanged
       name: user.name,
       role: user.role || 'executive',
-      company: user.company || 'Laboratorios Sophia S.A.'
+      company: user.company || 'Laboratorios Sophia S.A.',
+      zone: user.zone || ''
     })
     setFormError(null)
     setFormSuccess(null)
@@ -148,6 +152,7 @@ export default function UserManagement() {
             name: formData.name,
             role: formData.role,
             company: formData.company,
+            zone: formData.zone,
             password: formData.password || undefined
           })
         })
@@ -263,6 +268,7 @@ export default function UserManagement() {
                   <th className="p-4 text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Representante</th>
                   <th className="p-4 text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/4">Correo</th>
                   <th className="p-4 text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/5">Rol / Cargo</th>
+                  <th className="p-4 text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/6">Zona (RNF-12)</th>
                   <th className="p-4 text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase w-1/6">Estado</th>
                   <th className="p-4 text-xs font-black tracking-widest text-neutral-500 dark:text-neutral-400 uppercase text-center w-1/6">Acciones</th>
                 </tr>
@@ -282,6 +288,18 @@ export default function UserManagement() {
                         <span className="font-black uppercase bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 shadow-sm inline-block">
                           {u.role || 'representative'}
                         </span>
+                      </td>
+                      <td className="p-4 text-xs">
+                        {u.zone ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-[11px] font-bold uppercase tracking-wider">
+                            <MapPin className="w-3 h-3" />
+                            {u.zone}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg text-[11px] font-bold uppercase tracking-wider" title="Sin zona asignada: alcance global auditado como scope_zone_unassigned">
+                            Global (auditado)
+                          </span>
+                        )}
                       </td>
                       <td className="p-4">
                         {isDeleted ? (
@@ -325,7 +343,7 @@ export default function UserManagement() {
                 })}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-10 text-center text-neutral-500 dark:text-neutral-400 font-medium">
+                    <td colSpan={6} className="p-10 text-center text-neutral-500 dark:text-neutral-400 font-medium">
                       No se encontraron cuentas de representantes registradas.
                     </td>
                   </tr>
@@ -443,6 +461,27 @@ export default function UserManagement() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* RNF-12 · Zona comercial asignada: define el alcance de datos del representante */}
+              <div>
+                <label className="block text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-widest mb-2">
+                  Zona Comercial Asignada (RNF-12)
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <input
+                    type="text"
+                    value={formData.zone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, zone: e.target.value }))}
+                    placeholder="Ej. LIMA CENTRO · CHICLAYO · AREQUIPA"
+                    className="w-full pl-12 pr-4 py-3 bg-neutral-100 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl focus:outline-none focus:border-sophia-blue text-neutral-900 dark:text-white placeholder-neutral-500 text-sm transition-all uppercase"
+                  />
+                </div>
+                <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  El representante solo podrá consultar los historiales de esta zona. Si se deja vacío tendrá lectura
+                  global y el acceso quedará registrado como <code className="font-mono text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 rounded">scope_zone_unassigned</code> en la auditoría.
+                </p>
               </div>
 
               <div className="flex gap-4 pt-4">

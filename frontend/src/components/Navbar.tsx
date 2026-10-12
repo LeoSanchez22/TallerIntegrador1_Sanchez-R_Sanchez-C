@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { useTheme } from './ThemeProvider'
 import { supabase } from '../lib/supabase'
+import { clearSessionMarker } from '../lib/sessionMarkers'
+import { reportAuthEvent } from '../lib/auditEvents'
 import { useRouter } from 'next/navigation'
 
 interface NavbarProps {
@@ -39,6 +41,10 @@ export default function Navbar({ onToggleSidebar, user, isSidebarCollapsed }: Na
 
   const handleLogout = async () => {
     setShowUserDropdown(false)
+    // RF-16 · Deja constancia del cierre de sesión manual en el log de auditoría.
+    void reportAuthEvent({ event: 'logout', email: user?.email || null })
+    // RNF-04 · Elimina el marcador que vigila el middleware de Next.js.
+    clearSessionMarker()
     await supabase.auth.signOut()
     router.push('/login')
   }

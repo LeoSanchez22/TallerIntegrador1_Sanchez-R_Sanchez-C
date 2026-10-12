@@ -1,32 +1,75 @@
 'use client'
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Mail, Lock, Loader2, ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { Mail, Lock, Loader2, ArrowLeft, ShieldCheck, Sparkles, TimerOff, Info } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
+import { reportAuthEvent } from "../../../lib/auditEvents";
+import { touchSessionMarker } from "../../../lib/sessionMarkers";
 
-export default function Login() {
+/** Mensajes asociados a los cierres de sesión automáticos (RF-17 / RNF-04). */
+const REASON_MESSAGES: Record<string, string> = {
+  idle_timeout:
+    "Tu sesión se cerró automáticamente por inactividad (RF-17). Vuelve a autenticarte para continuar.",
+  session_required: "Debes iniciar sesión para acceder a los módulos operativos (RNF-04).",
+  session_expired: "Tu sesión ha expirado. Vuelve a autenticarte para continuar.",
+};
+
+/**
+ * Normaliza el mensaje de error de Supabase Auth a los códigos canónicos
+ * admitidos por el endpoint público `POST /api/security/auth-event` (RF-16),
+ * de modo que el log de auditoría permanece normalizado y consultable.
+ */
+function mapSupabaseAuthError(message?: string): string {
+  const value = (message || "").toLowerCase();
+  if (value.includes("invalid login credentials")) return "credenciales_invalidas";
+  if (value.includes("email not confirmed")) return "usuario_no_encontrado";
+  if (value.includes("user not found")) return "usuario_no_encontrado";
+  if (value.includes("disabled") || value.includes("inhabilitad")) return "cuenta_inhabilitada";
+  if (value.includes("network") || value.includes("fetch")) return "error_de_red";
+  return "credenciales_invalidas";
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams.get("reason");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(REASON_MESSAGES[reason || ""] || null);
+
+  useEffect(() => {
+    setNotice(REASON_MESSAGES[reason || ""] || null);
+  }, [reason]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+    setNotice(null);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      // RF-16 · Intento de inicio de sesión fallido (queda en el log con IP y hora).
+      // El motivo se normaliza al catálogo canónico que admite el backend.
+      void reportAuthEvent({
+        event: "login_failed",
+        email,
+        reason: mapSupabaseAuthError(error.message)
+      });
       setError(error.message);
       setLoading(false);
     } else {
+      // RF-16 · Inicio exitoso + RNF-04 · marcador de sesión para el middleware.
+      void reportAuthEvent({ event: "login_success", email });
+      touchSessionMarker();
       router.push("/app");
     }
   };
@@ -90,6 +133,13 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
+            {notice && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 p-3.5 rounded-xl text-sm border border-amber-200 dark:border-amber-800 font-semibold flex items-start gap-2 animate-fadeIn">
+                <TimerOff className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{notice}</span>
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 p-3.5 rounded-xl text-sm border border-red-200 dark:border-red-800 font-semibold flex items-center gap-2 animate-shake">
                 <span>⚠️</span>
@@ -157,9 +207,38 @@ export default function Login() {
               Regístrate aquí
             </Link>
           </p>
+
+          {/* Ley N° 29733 · Aviso de privacidad y consentimiento informado */}
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-neutral-400 dark:text-neutral-500">
+            Al continuar aceptas el tratamiento de tus datos personales conforme a nuestro{" "}
+            <Link
+              href="/privacy"
+              target="_blank"
+              className="inline-flex items-center gap-1 font-bold text-sophia-blue dark:text-sky-400 hover:underline"
+            >
+              <Info className="w-3 h-3" />
+              Aviso de Privacidad (Ley N° 29733)
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Login() {
+  // useSearchParams requiere un límite de Suspense en Next.js 15.
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-sophia-blue"></div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
 

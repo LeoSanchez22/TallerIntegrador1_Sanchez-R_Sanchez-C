@@ -3,17 +3,21 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { pool, precargarDatos, getCachedData } from '../config/db.js'
+import { AUDIT_EVENTS, getClientIp, logSecurityEvent, throttleAudit } from '../security/audit.js'
+import { checkResourceAccess, enforceZoneParam } from '../security/zoneScope.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const clientsRouter = new Hono()
 
-// 1. Listado completo de clientes con agregaciones comerciales
+// 1. Listado completo de clientes con agregaciones comerciales (RNF-12)
 clientsRouter.get('/list', async (c) => {
   try {
     const search = (c.req.query('search') || '').trim().toUpperCase()
-    const zonaFiltro = c.req.query('zona')
+    // RNF-12: el filtro de zona se fuerza al alcance del usuario autenticado;
+    // un representante nunca puede ampliar su alcance cambiando el parámetro.
+    const zonaFiltro = enforceZoneParam(c, c.req.query('zona'))
 
     let rows = []
     try {
@@ -121,6 +125,33 @@ clientsRouter.get('/detalle/:id', async (c) => {
     } catch (dbErr) {
       ventasDetalle = getCachedData().filter(r => Number(r.cliente_id) === cid)
       if (ventasDetalle.length > 0) clientName = ventasDetalle[0].cliente
+    }
+
+    // RNF-12: verificación de alcance por zona comercial antes de exponer el detalle.
+    const ctx = c.get('authz') || {}
+    if (ctx.role !== 'admin') {
+      const zonaCliente = ventasDetalle[0]?.zona || ventasDetalle[0]?.zona_comercial || null
+      const access = checkResourceAccess(c, zonaCliente)
+      if (!access.allowed) {
+        if (throttleAudit(`zone-denied:${ctx.userId}:${cid}`, 10, 5 * 60 * 1000)) {
+          await logSecurityEvent({
+            eventType: AUDIT_EVENTS.UNAUTHORIZED_ACCESS,
+            severity: 'warning',
+            userId: ctx.userId,
+            userEmail: ctx.email,
+            userRole: ctx.role,
+            ip: getClientIp(c),
+            method: 'GET',
+            resource: `/api/clientes/detalle/${cid}`,
+            statusCode: 403,
+            details: { zona_usuario: access.scopeZone, zona_cliente: access.resourceZone }
+          })
+        }
+        return c.json({
+          error: 'Acceso denegado',
+          details: `El cliente ${cid} pertenece a la zona comercial ${access.resourceZone}; tu perfil tiene asignada la zona ${access.scopeZone}.`
+        }, 403)
+      }
     }
 
     return c.json({

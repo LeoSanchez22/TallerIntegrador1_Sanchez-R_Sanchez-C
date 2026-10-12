@@ -55,3 +55,16 @@ taller2/
 produccion/
 
 
+
+# =====================================================================
+# Secrets y artefactos sensibles — NUNCA deben versionarse
+# =====================================================================
+# Guía de despliegue que contiene credenciales reales de Supabase, el
+# JWT secret y claves del VPS. Protegida deliberadamente contra commits.
+vps_deployment_and_nginx_guide.md
+
+# Respaldos locales del log de auditoría (RF-16) y de la trazabilidad (RF-14)
+backend/logs/
+
+# Artefactos de compilación de TypeScript
+frontend/tsconfig.tsbuildinfo

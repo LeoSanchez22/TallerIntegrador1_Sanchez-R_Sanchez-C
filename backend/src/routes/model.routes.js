@@ -2,14 +2,15 @@ import { Hono } from 'hono'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-import { exec } from 'child_process'
+import { exec, execFile } from 'child_process'
 import { getPythonBin } from '../utils/python.js'
+import { AUDIT_EVENTS, getClientIp, getUserAgent, logSecurityEvent } from '../security/audit.js'
+import { callMlService } from '../utils/mlClient.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const modelRouter = new Hono()
-const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000'
 
 // 1. Endpoint público seguro para subir el checkpoint del modelo .pt
 modelRouter.post('/upload', async (c) => {
@@ -51,6 +52,18 @@ modelRouter.post('/upload', async (c) => {
       exec('pm2 reload sophia-fastapi', () => {})
     }
 
+    // Trazabilidad: actualización del artefacto del modelo (RF-16)
+    await logSecurityEvent({
+      eventType: AUDIT_EVENTS.MODEL_UPDATED,
+      severity: 'info',
+      ip: getClientIp(c),
+      userAgent: getUserAgent(c),
+      method: 'POST',
+      resource: '/model/upload',
+      statusCode: 200,
+      details: { archivo: modelFilename, bytes: file.size || 0, mecanismo: 'token_estatico_despliegue' }
+    })
+
     return c.json({ success: true, message: "Modelo actualizado exitosamente en el servidor de despliegue" })
   } catch (err) {
     return c.json({ error: "Error interno al procesar el archivo en el servidor", details: err.message }, 500)
@@ -60,8 +73,8 @@ modelRouter.post('/upload', async (c) => {
 // 2. Entrenar / Reentrenar modelo
 modelRouter.post('/train', async (c) => {
   try {
-    const response = await fetch(`${FASTAPI_URL}/api/train`, { method: 'POST' })
-    if (response.ok) {
+    const response = await callMlService('/api/train', { method: 'POST', authz: c.get('authz') })
+    if (response && response.ok) {
       const data = await response.json()
       return c.json(data)
     }
@@ -71,7 +84,8 @@ modelRouter.post('/train', async (c) => {
 
   const rootPath = path.resolve(__dirname, '../../../')
   const pythonBin = getPythonBin()
-  exec(`${pythonBin} src_py/train.py`, { cwd: rootPath }, (error, stdout, stderr) => {
+  // RNF-13: execFile sin shell evita cualquier vector de command injection.
+  execFile(pythonBin, ['src_py/train.py'], { cwd: rootPath }, (error, stdout, stderr) => {
     if (error) {
       console.error(`[HONO API] Entrenamiento fallido en CLI:`, stderr)
     } else {
@@ -92,8 +106,8 @@ modelRouter.post('/retrain', async (c) => {
 // 3. Estado de entrenamiento
 modelRouter.get('/train/status', async (c) => {
   try {
-    const response = await fetch(`${FASTAPI_URL}/api/train/status`)
-    if (response.ok) {
+    const response = await callMlService('/api/train/status', { authz: c.get('authz') })
+    if (response && response.ok) {
       const data = await response.json()
       return c.json(data)
     }
